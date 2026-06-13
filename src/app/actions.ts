@@ -230,42 +230,49 @@ export async function upsertReview(formData: FormData) {
 
   await syncMemberCompleted(supabase, memberId, bookId, wantsCompleted);
 
-  const { data: priorReview } = await supabase
-    .from("reviews")
-    .select("rating, body")
-    .eq("book_id", bookId)
-    .eq("member_id", memberId)
-    .maybeSingle();
-
-  let rating: number | null = null;
-  let body: string | null = null;
   if (wantsCompleted) {
     const ratingRaw = Number(formData.get("rating"));
-    rating = ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
-    body = String(formData.get("body") ?? "").trim() || null;
-  } else if (priorReview) {
-    rating = priorReview.rating;
-    body = priorReview.body;
-  }
+    const rating = ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
+    const body = String(formData.get("body") ?? "").trim() || null;
 
-  await supabase.from("reviews").upsert(
-    {
-      book_id: bookId,
-      member_id: memberId,
-      finished: wantsCompleted,
-      dnf,
-      rating,
-      body,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "book_id,member_id" },
-  );
-
-  if (rating) {
-    const { data } = await supabase.from("books").select("title").eq("id", bookId).single();
-    await notifyDiscord(
-      `⭐ ${await memberName(memberId)} rated **${data?.title ?? "a book"}** ${rating}/5.`,
+    await supabase.from("reviews").upsert(
+      {
+        book_id: bookId,
+        member_id: memberId,
+        finished: true,
+        dnf: false,
+        rating,
+        body,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "book_id,member_id" },
     );
+
+    if (rating) {
+      const { data } = await supabase.from("books").select("title").eq("id", bookId).single();
+      await notifyDiscord(
+        `⭐ ${await memberName(memberId)} rated **${data?.title ?? "a book"}** ${rating}/5.`,
+      );
+    }
+  } else if (dnf) {
+    await supabase.from("reviews").upsert(
+      {
+        book_id: bookId,
+        member_id: memberId,
+        finished: false,
+        dnf: true,
+        rating: null,
+        body: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "book_id,member_id" },
+    );
+  } else {
+    await supabase
+      .from("reviews")
+      .delete()
+      .eq("book_id", bookId)
+      .eq("member_id", memberId);
   }
 
   revalidatePath(`/books/${bookId}`);
@@ -316,10 +323,9 @@ export async function toggleMemberRead(formData: FormData) {
     .maybeSingle();
   if (existing) {
     await supabase.from("member_book_reads").delete().eq("id", existing.id);
-    // No longer completed: reflect on any existing review row (rating kept).
     await supabase
       .from("reviews")
-      .update({ finished: false })
+      .delete()
       .eq("book_id", bookId)
       .eq("member_id", memberId);
   } else {

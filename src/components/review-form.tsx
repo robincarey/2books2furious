@@ -22,6 +22,13 @@ export function ReviewForm({
   const [expanded, setExpanded] = useState(!hasReview);
   const [isCompleted, setIsCompleted] = useState(completed);
   const [isDnf, setIsDnf] = useState(Boolean(existing?.dnf && !completed));
+  const [body, setBody] = useState(existing?.body ?? "");
+  const [ratingKey, setRatingKey] = useState(0);
+
+  const clearReviewFields = () => {
+    setBody("");
+    setRatingKey((k) => k + 1);
+  };
 
   if (disabled) {
     return <p className="text-sm text-warning">Pick who you are first.</p>;
@@ -72,7 +79,11 @@ export function ReviewForm({
             checked={isCompleted}
             onChange={(e) => {
               setIsCompleted(e.target.checked);
-              if (e.target.checked) setIsDnf(false);
+              if (e.target.checked) {
+                setIsDnf(false);
+              } else {
+                clearReviewFields();
+              }
             }}
             className="h-4 w-4 accent-[var(--primary)]"
           />
@@ -86,7 +97,10 @@ export function ReviewForm({
             checked={isDnf}
             onChange={(e) => {
               setIsDnf(e.target.checked);
-              if (e.target.checked) setIsCompleted(false);
+              if (e.target.checked) {
+                setIsCompleted(false);
+                clearReviewFields();
+              }
             }}
             className="h-4 w-4 accent-[var(--primary)]"
           />
@@ -102,7 +116,10 @@ export function ReviewForm({
 
       <div className={cn(ratingLocked && "pointer-events-none opacity-40")}>
         <label className="mb-1.5 block text-sm font-medium">Rating</label>
-        <StarInput defaultValue={isCompleted ? (existing?.rating ?? 0) : 0} key={isCompleted ? "on" : "off"} />
+        <StarInput
+          defaultValue={isCompleted ? (existing?.rating ?? 0) : 0}
+          key={`${isCompleted ? "on" : "off"}-${ratingKey}`}
+        />
       </div>
 
       <div>
@@ -112,7 +129,8 @@ export function ReviewForm({
         <textarea
           name="body"
           rows={4}
-          defaultValue={existing?.body ?? ""}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
           disabled={ratingLocked}
           className={cn(inputClass, ratingLocked && "opacity-40")}
           placeholder="What did you think?"
