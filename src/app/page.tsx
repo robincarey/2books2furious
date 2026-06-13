@@ -143,7 +143,9 @@ export default async function Home() {
                 <div className="mt-4">
                   <ProgressControl
                     bookId={currentBook.id}
-                    initial={progressByMember.get(me.id) ?? 0}
+                    progress={progress.find((p) => p.member_id === me.id) ?? null}
+                    defaultPages={currentBook.page_count}
+                    defaultMinutes={currentBook.audiobook_minutes}
                   />
                 </div>
               )}

@@ -21,9 +21,12 @@ export interface Book {
   description: string | null;
   isbn: string | null;
   suggested_by: string | null;
+  picked_by: string | null;
   status: BookStatus;
   created_at: string;
 }
+
+export type ProgressUnit = "percent" | "pages" | "minutes";
 
 export interface Meeting {
   id: string;
@@ -63,6 +66,9 @@ export interface ReadingProgress {
   member_id: string;
   book_id: string;
   percent: number;
+  unit: ProgressUnit;
+  position: number | null;
+  total: number | null;
   updated_at: string;
 }
 

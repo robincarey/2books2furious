@@ -1,52 +1,38 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
+import { refreshRecommendations } from "@/app/actions";
+import type { CachedRecommendations } from "@/lib/queries";
 import type { Member } from "@/lib/types";
-import { btn, inputClass } from "@/lib/utils";
+import { inputClass, relativeTime } from "@/lib/utils";
 import { Card } from "./ui";
 
-interface Rec {
-  title: string;
-  author: string;
-  why: string;
+function RefreshButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium transition hover:border-primary/50 disabled:opacity-50"
+    >
+      {pending ? "Refreshing…" : "Refresh recommendations"}
+    </button>
+  );
 }
 
 export function RecommendationsPanel({
   members,
   configured,
+  cache,
 }: {
   members: Member[];
   configured: boolean;
+  cache: Record<string, CachedRecommendations>;
 }) {
   const [scope, setScope] = useState("group");
-  const [loading, setLoading] = useState(false);
-  const [recs, setRecs] = useState<Rec[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function generate() {
-    setLoading(true);
-    setError(null);
-    setRecs(null);
-    try {
-      const res = await fetch("/api/recommendations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scope }),
-      });
-      const data = await res.json();
-      if (data.error === "not_configured") {
-        setError("Recommendations aren't configured. Add HARDCOVER_API_KEY to enable them.");
-      } else if (!data.recommendations?.length) {
-        setError("No recommendations came back. Try again once there are some reads/ratings.");
-      } else {
-        setRecs(data.recommendations);
-      }
-    } catch {
-      setError("Something went wrong reaching Hardcover.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const current = cache[scope];
+  const recs = current?.recommendations ?? [];
 
   if (!configured) {
     return (
@@ -77,18 +63,37 @@ export function RecommendationsPanel({
             ))}
           </select>
         </div>
-        <button onClick={generate} disabled={loading} className={btn("primary")}>
-          {loading ? "Finding matches…" : "Get recommendations"}
-        </button>
+        <form action={refreshRecommendations}>
+          <input type="hidden" name="scope" value={scope} />
+          <RefreshButton />
+        </form>
       </Card>
 
-      {error && <p className="text-sm text-warning">{error}</p>}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-muted-foreground">Top {Math.max(recs.length, 5)} picks</p>
+        {current && (
+          <p className="text-xs text-muted-foreground">
+            Updated {relativeTime(current.generated_at)}
+          </p>
+        )}
+      </div>
 
-      {recs && (
+      {recs.length === 0 ? (
+        <Card className="p-6">
+          <p className="text-sm text-muted-foreground">
+            {current
+              ? "No matches yet — add a few ratings, then refresh."
+              : "No recommendations cached for this selection yet. Hit \u201cRefresh recommendations\u201d to generate them."}
+          </p>
+        </Card>
+      ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {recs.map((r, i) => (
             <Card key={i} className="p-5">
-              <p className="font-semibold">{r.title}</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-bold text-primary">#{i + 1}</span>
+                <p className="font-semibold">{r.title}</p>
+              </div>
               <p className="text-sm text-muted-foreground">{r.author}</p>
               <p className="mt-2 text-sm text-foreground/90">{r.why}</p>
             </Card>

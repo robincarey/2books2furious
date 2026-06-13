@@ -100,6 +100,20 @@ export async function getAllMemberReads(): Promise<{ member_id: string; book_id:
   return (data as { member_id: string; book_id: string }[]) ?? [];
 }
 
+export interface CachedRecommendations {
+  scope: string;
+  recommendations: { title: string; author: string; why: string }[];
+  generated_at: string;
+}
+
+export async function getRecommendationCache(): Promise<Record<string, CachedRecommendations>> {
+  const supabase = getSupabase();
+  const { data } = await supabase.from("recommendations_cache").select("*");
+  const out: Record<string, CachedRecommendations> = {};
+  for (const r of (data as CachedRecommendations[]) ?? []) out[r.scope] = r;
+  return out;
+}
+
 export async function getReadsForBook(bookId: string): Promise<string[]> {
   const supabase = getSupabase();
   const { data } = await supabase
@@ -167,11 +181,12 @@ export async function getCommentsForMeeting(meetingId: string): Promise<Comment[
   return (data as Comment[]) ?? [];
 }
 
-/** Progress-gated book comments: only those at or below the viewer's progress. */
-export async function getSpoilerComments(
-  bookId: string,
-  viewerPercent: number,
-): Promise<Comment[]> {
+/**
+ * All progress-gated book comments, ordered by their unlock threshold. The UI
+ * decides which to reveal vs. render as locked placeholders based on the
+ * viewer's progress, so members can see that discussion exists further ahead.
+ */
+export async function getBookComments(bookId: string): Promise<Comment[]> {
   const supabase = getSupabase();
   const { data } = await supabase
     .from("comments")
@@ -180,8 +195,7 @@ export async function getSpoilerComments(
     .is("meeting_id", null)
     .order("progress_percent", { ascending: true })
     .order("created_at", { ascending: true });
-  const all = (data as Comment[]) ?? [];
-  return all.filter((c) => (c.progress_percent ?? 0) <= viewerPercent);
+  return (data as Comment[]) ?? [];
 }
 
 export async function getProgressForBook(bookId: string): Promise<ReadingProgress[]> {
@@ -217,13 +231,37 @@ export interface BookLeaderRow {
   picked_by: Member | null;
 }
 
+/**
+ * Resolve who picked each book. Book-level `picked_by` (used for historical
+ * books with no meeting) takes precedence, falling back to a meeting's picker.
+ * Returns only books with an attributed picker so rotation/leaderboards stay fair.
+ */
+export async function getPickerByBook(): Promise<Map<string, string>> {
+  const supabase = getSupabase();
+  const [{ data: books }, { data: meetings }] = await Promise.all([
+    supabase.from("books").select("id, picked_by"),
+    supabase.from("meetings").select("book_id, picked_by"),
+  ]);
+  const meetingPicker = new Map<string, string>();
+  for (const m of (meetings as { book_id: string | null; picked_by: string | null }[]) ?? []) {
+    if (m.book_id && m.picked_by) meetingPicker.set(m.book_id, m.picked_by);
+  }
+  const out = new Map<string, string>();
+  for (const b of (books as { id: string; picked_by: string | null }[]) ?? []) {
+    const picker = b.picked_by ?? meetingPicker.get(b.id) ?? null;
+    if (picker) out.set(b.id, picker);
+  }
+  return out;
+}
+
 /** Books ranked by average rating (read books with at least one rating). */
 export async function getBookLeaderboard(): Promise<BookLeaderRow[]> {
   const supabase = getSupabase();
-  const [{ data: books }, { data: reviews }, members] = await Promise.all([
+  const [{ data: books }, { data: reviews }, members, pickerByBook] = await Promise.all([
     supabase.from("books").select("*"),
     supabase.from("reviews").select("book_id, rating"),
     membersById(),
+    getPickerByBook(),
   ]);
   const bookList = (books as Book[]) ?? [];
   const ratingMap = new Map<string, { sum: number; n: number }>();
@@ -234,17 +272,11 @@ export async function getBookLeaderboard(): Promise<BookLeaderRow[]> {
     e.n += 1;
     ratingMap.set(r.book_id, e);
   }
-  // Map books to the member who picked them (via meetings).
-  const { data: meetings } = await supabase.from("meetings").select("book_id, picked_by");
-  const pickerMap = new Map<string, string | null>();
-  for (const m of (meetings as { book_id: string | null; picked_by: string | null }[]) ?? []) {
-    if (m.book_id) pickerMap.set(m.book_id, m.picked_by);
-  }
 
   return bookList
     .map((book) => {
       const r = ratingMap.get(book.id);
-      const pickerId = pickerMap.get(book.id) ?? book.suggested_by;
+      const pickerId = pickerByBook.get(book.id) ?? null;
       return {
         book,
         avg_rating: r ? r.sum / r.n : 0,
@@ -268,16 +300,16 @@ export interface MemberStatRow {
 /** Per-member stats for the member leaderboard. */
 export async function getMemberLeaderboard(): Promise<MemberStatRow[]> {
   const supabase = getSupabase();
-  const [members, { data: reviews }, { data: meetings }] = await Promise.all([
+  const [members, { data: reviews }, { data: reads }, pickerByBook] = await Promise.all([
     getMembers(),
-    supabase.from("reviews").select("member_id, rating, finished, book_id"),
-    supabase.from("meetings").select("book_id, picked_by"),
+    supabase.from("reviews").select("member_id, rating, book_id"),
+    supabase.from("member_book_reads").select("member_id"),
+    getPickerByBook(),
   ]);
 
   const revs = (reviews as {
     member_id: string;
     rating: number | null;
-    finished: boolean;
     book_id: string;
   }[]) ?? [];
 
@@ -291,12 +323,18 @@ export async function getMemberLeaderboard(): Promise<MemberStatRow[]> {
     bookAvg.set(r.book_id, e);
   }
 
+  // Picks come from the unified picker-per-book resolution (book or meeting).
   const picksByMember = new Map<string, string[]>();
-  for (const m of (meetings as { book_id: string | null; picked_by: string | null }[]) ?? []) {
-    if (!m.picked_by || !m.book_id) continue;
-    const arr = picksByMember.get(m.picked_by) ?? [];
-    arr.push(m.book_id);
-    picksByMember.set(m.picked_by, arr);
+  for (const [bookId, pickerId] of pickerByBook.entries()) {
+    const arr = picksByMember.get(pickerId) ?? [];
+    arr.push(bookId);
+    picksByMember.set(pickerId, arr);
+  }
+
+  // Completion ("finished") is the per-member read flag, not the old checkbox.
+  const finishedByMember = new Map<string, number>();
+  for (const r of (reads as { member_id: string }[]) ?? []) {
+    finishedByMember.set(r.member_id, (finishedByMember.get(r.member_id) ?? 0) + 1);
   }
 
   return members.map((member) => {
@@ -315,7 +353,7 @@ export async function getMemberLeaderboard(): Promise<MemberStatRow[]> {
       reviews_written: mine.length,
       avg_given:
         rated.length > 0 ? rated.reduce((s, r) => s + r.rating, 0) / rated.length : null,
-      books_finished: mine.filter((r) => r.finished).length,
+      books_finished: finishedByMember.get(member.id) ?? 0,
       picks: picks.length,
       avg_pick_rating: pickAvg,
     };
@@ -379,21 +417,29 @@ export async function getRotation(): Promise<{
   lastPicker: Member | null;
 }> {
   const supabase = getSupabase();
-  const [members, { data: meetings }] = await Promise.all([
+  const [members, pickerByBook, { data: meetings }] = await Promise.all([
     getMembers(),
-    supabase.from("meetings").select("picked_by, meeting_date").order("meeting_date", {
-      ascending: true,
-    }),
+    getPickerByBook(),
+    supabase
+      .from("meetings")
+      .select("picked_by, meeting_date")
+      .lte("meeting_date", new Date().toISOString())
+      .order("meeting_date", { ascending: true }),
   ]);
-  const ms = (meetings as { picked_by: string | null; meeting_date: string }[]) ?? [];
+
+  // Pick counts come from the unified picker-per-book resolution so historical
+  // books (attributed at the book level) count alongside scheduled meetings.
   const pickCounts = new Map<string, number>();
   for (const m of members) pickCounts.set(m.id, 0);
+  for (const pickerId of pickerByBook.values()) {
+    pickCounts.set(pickerId, (pickCounts.get(pickerId) ?? 0) + 1);
+  }
+
+  // Last picker = most recent past meeting's picker (used only for tie-breaking).
+  const ms = (meetings as { picked_by: string | null; meeting_date: string }[]) ?? [];
   let lastPickerId: string | null = null;
   for (const m of ms) {
-    if (m.picked_by) {
-      pickCounts.set(m.picked_by, (pickCounts.get(m.picked_by) ?? 0) + 1);
-      lastPickerId = m.picked_by;
-    }
+    if (m.picked_by) lastPickerId = m.picked_by;
   }
 
   // Next up = member with fewest picks; tie-break by selection_order starting

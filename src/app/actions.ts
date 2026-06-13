@@ -183,35 +183,45 @@ export async function upsertReview(formData: FormData) {
   const bookId = String(formData.get("book_id") ?? "");
   if (!bookId) throw new Error("Missing book.");
 
-  const finished = formData.get("finished") === "on";
-  const dnf = formData.get("dnf") === "on";
-  const ratingRaw = Number(formData.get("rating"));
-  const rating = ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
-  const body = String(formData.get("body") ?? "").trim() || null;
+  const supabase = getSupabase();
 
-  await getSupabase()
-    .from("reviews")
-    .upsert(
-      {
-        book_id: bookId,
-        member_id: memberId,
-        finished,
-        dnf,
-        rating,
-        body,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "book_id,member_id" },
-    );
+  // Completion is the single source of truth (member_book_reads). Ratings and
+  // review text are only accepted once a member has marked the book completed.
+  const { data: completedRow } = await supabase
+    .from("member_book_reads")
+    .select("id")
+    .eq("book_id", bookId)
+    .eq("member_id", memberId)
+    .maybeSingle();
+  const completed = Boolean(completedRow);
+
+  const dnf = !completed && formData.get("dnf") === "on";
+  const ratingRaw = Number(formData.get("rating"));
+  const rating = completed && ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
+  const body = completed ? String(formData.get("body") ?? "").trim() || null : null;
+
+  await supabase.from("reviews").upsert(
+    {
+      book_id: bookId,
+      member_id: memberId,
+      finished: completed,
+      dnf,
+      rating,
+      body,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "book_id,member_id" },
+  );
 
   if (rating) {
-    const { data } = await getSupabase().from("books").select("title").eq("id", bookId).single();
+    const { data } = await supabase.from("books").select("title").eq("id", bookId).single();
     await notifyDiscord(
       `⭐ ${await memberName(memberId)} rated **${data?.title ?? "a book"}** ${rating}/5.`,
     );
   }
 
   revalidatePath(`/books/${bookId}`);
+  revalidatePath("/previous");
   revalidatePath("/leaderboard");
 }
 
@@ -260,11 +270,24 @@ export async function toggleMemberRead(formData: FormData) {
     .maybeSingle();
   if (existing) {
     await supabase.from("member_book_reads").delete().eq("id", existing.id);
+    // No longer completed: reflect on any existing review row (rating kept).
+    await supabase
+      .from("reviews")
+      .update({ finished: false })
+      .eq("book_id", bookId)
+      .eq("member_id", memberId);
   } else {
     await supabase.from("member_book_reads").insert({ book_id: bookId, member_id: memberId });
+    // Completed and DNF are mutually exclusive.
+    await supabase
+      .from("reviews")
+      .update({ finished: true, dnf: false })
+      .eq("book_id", bookId)
+      .eq("member_id", memberId);
   }
   revalidatePath("/previous");
   revalidatePath("/");
+  revalidatePath("/leaderboard");
   revalidatePath(`/books/${bookId}`);
 }
 
@@ -323,13 +346,92 @@ export async function setProgress(formData: FormData) {
   const memberId = await requireMember();
   const bookId = String(formData.get("book_id") ?? "");
   if (!bookId) return;
-  const percent = Math.max(0, Math.min(100, Number(formData.get("percent")) || 0));
+
+  const unitRaw = String(formData.get("unit") ?? "percent");
+  const unit = (["percent", "pages", "minutes"] as const).includes(unitRaw as never)
+    ? (unitRaw as "percent" | "pages" | "minutes")
+    : "percent";
+
+  const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+
+  let percent: number;
+  let position: number | null = null;
+  let total: number | null = null;
+
+  if (unit === "percent") {
+    percent = clamp(Number(formData.get("percent")) || Number(formData.get("position")) || 0);
+    position = percent;
+    total = 100;
+  } else {
+    position = Math.max(0, Math.round(Number(formData.get("position")) || 0));
+    total = Math.max(0, Math.round(Number(formData.get("total")) || 0));
+    percent = total > 0 ? clamp((position / total) * 100) : 0;
+  }
+
   await getSupabase()
     .from("reading_progress")
     .upsert(
-      { member_id: memberId, book_id: bookId, percent, updated_at: new Date().toISOString() },
+      {
+        member_id: memberId,
+        book_id: bookId,
+        percent,
+        unit,
+        position,
+        total: total && total > 0 ? total : null,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "member_id,book_id" },
     );
   revalidatePath(`/books/${bookId}`);
   revalidatePath("/");
+}
+
+// --------------------------------------------------------------------------
+// Recommendations cache (served by default; manual refresh hits Hardcover)
+// --------------------------------------------------------------------------
+export async function refreshRecommendations(formData: FormData) {
+  await requireMember();
+  const scope = String(formData.get("scope") ?? "group") || "group";
+  const { getRecommendations, isHardcoverConfigured } = await import("@/lib/hardcover");
+  if (!isHardcoverConfigured()) return;
+
+  const supabase = getSupabase();
+  const [{ data: books }, { data: reviews }] = await Promise.all([
+    supabase.from("books").select("*"),
+    supabase.from("reviews").select("*"),
+  ]);
+  const bookList = (books as { id: string; title: string; author: string | null; status: string }[]) ?? [];
+  const reviewList = (reviews as { book_id: string; member_id: string; rating: number | null }[]) ?? [];
+
+  const relevant =
+    scope && scope !== "group" ? reviewList.filter((r) => r.member_id === scope) : reviewList;
+  const avgByBook = new Map<string, { sum: number; n: number }>();
+  for (const r of relevant) {
+    if (r.rating == null) continue;
+    const e = avgByBook.get(r.book_id) ?? { sum: 0, n: 0 };
+    e.sum += r.rating;
+    e.n += 1;
+    avgByBook.set(r.book_id, e);
+  }
+  const history = bookList
+    .filter((b) => avgByBook.has(b.id) || b.status === "read")
+    .map((b) => {
+      const a = avgByBook.get(b.id);
+      return { title: b.title, author: b.author, avgRating: a ? a.sum / a.n : null };
+    });
+
+  const recommendations = await getRecommendations({
+    history,
+    avoidTitles: bookList.map((b) => b.title),
+    limit: 5,
+  });
+
+  await supabase
+    .from("recommendations_cache")
+    .upsert(
+      { scope, recommendations, generated_at: new Date().toISOString() },
+      { onConflict: "scope" },
+    );
+
+  revalidatePath("/recommendations");
 }

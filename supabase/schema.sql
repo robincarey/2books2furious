@@ -146,6 +146,31 @@ create table if not exists feature_request_votes (
   unique (request_id, member_id)
 );
 
+-- ---------------------------------------------------------------------------
+-- Cached recommendations (one row per scope: 'group' or a member uuid).
+-- Served by default so we don't hit the Hardcover API on every page view.
+-- ---------------------------------------------------------------------------
+create table if not exists recommendations_cache (
+  scope           text primary key,
+  recommendations jsonb not null default '[]'::jsonb,
+  generated_at    timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------------
+-- Idempotent migrations for columns added after the initial schema.
+-- ---------------------------------------------------------------------------
+-- Book-level picker attribution for historical books with no meeting/date.
+alter table books add column if not exists picked_by uuid references members(id) on delete set null;
+
+-- Reading progress can be entered as percent, pages, or audiobook minutes.
+-- `percent` stays the derived gate used for spoiler-gating regardless of unit.
+alter table reading_progress add column if not exists unit text not null default 'percent';
+alter table reading_progress drop constraint if exists reading_progress_unit_check;
+alter table reading_progress add constraint reading_progress_unit_check
+  check (unit in ('percent','pages','minutes'));
+alter table reading_progress add column if not exists position int;
+alter table reading_progress add column if not exists total int;
+
 -- Helpful indexes
 create index if not exists idx_reviews_book on reviews(book_id);
 create index if not exists idx_feature_votes_request on feature_request_votes(request_id);
@@ -155,6 +180,7 @@ create index if not exists idx_comments_meeting on comments(meeting_id);
 create index if not exists idx_comments_book on comments(book_id);
 create index if not exists idx_meetings_date on meetings(meeting_date);
 create index if not exists idx_progress_book on reading_progress(book_id);
+create index if not exists idx_books_picked_by on books(picked_by);
 
 -- ---------------------------------------------------------------------------
 -- Lock everything down: enable RLS, define no policies. The server uses the
@@ -171,6 +197,7 @@ alter table rsvps            enable row level security;
 alter table feature_requests      enable row level security;
 alter table feature_request_votes enable row level security;
 alter table member_book_reads     enable row level security;
+alter table recommendations_cache enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Seed the 5 members (idempotent on name)

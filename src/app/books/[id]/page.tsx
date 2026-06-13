@@ -11,12 +11,12 @@ import { StarsDisplay } from "@/components/star-rating";
 import { Badge, Card, PageHeader, ProgressBar } from "@/components/ui";
 import {
   getBook,
+  getBookComments,
   getMyProgress,
   getMyReview,
   getProgressForBook,
   getReadsForBook,
   getReviewsForBook,
-  getSpoilerComments,
   membersById,
 } from "@/lib/queries";
 import { getCurrentMemberId } from "@/lib/session";
@@ -40,8 +40,9 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
   ]);
 
   const readerSet = new Set(readerIds);
+  const completed = memberId ? readerSet.has(memberId) : false;
   const myPercent = myProgress?.percent ?? 0;
-  const spoilerComments = await getSpoilerComments(id, memberId ? myPercent : 100);
+  const bookComments = await getBookComments(id);
 
   const ratings = reviews.filter((r) => r.rating != null).map((r) => r.rating as number);
   const avg = ratings.length ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null;
@@ -102,8 +103,11 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{m?.name}</span>
                           {r.rating != null && <StarsDisplay value={r.rating} size={14} />}
-                          {r.dnf && <Badge tone="warning">DNF</Badge>}
-                          {r.finished && !r.dnf && <Badge tone="success">finished</Badge>}
+                          {readerSet.has(r.member_id) ? (
+                            <Badge tone="success">completed</Badge>
+                          ) : (
+                            r.dnf && <Badge tone="warning">DNF</Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             {relativeTime(r.updated_at)}
                           </span>
@@ -138,18 +142,23 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
                 disabled={!memberId}
               />
             </div>
-            <CommentList comments={spoilerComments} members={memberMap} showProgress />
+            <CommentList
+              comments={bookComments}
+              members={memberMap}
+              showProgress
+              viewerPercent={memberId ? myPercent : undefined}
+            />
           </Card>
         </div>
 
         <div className="space-y-6">
           <Card className="p-6">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold">Read by</h2>
-              <ReadToggle bookId={id} read={memberId ? readerSet.has(memberId) : false} disabled={!memberId} size="sm" />
+              <h2 className="text-lg font-semibold">Completed by</h2>
+              <ReadToggle bookId={id} read={completed} disabled={!memberId} size="sm" />
             </div>
             {readerSet.size === 0 ? (
-              <p className="text-sm text-muted-foreground">No one has marked this read yet.</p>
+              <p className="text-sm text-muted-foreground">No one has marked this completed yet.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {[...memberMap.values()]
@@ -169,7 +178,12 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
 
           <Card className="p-6">
             <h2 className="mb-4 text-lg font-semibold">Your review</h2>
-            <ReviewForm bookId={id} existing={myReview} disabled={!memberId} />
+            <ReviewForm
+              bookId={id}
+              existing={myReview}
+              disabled={!memberId}
+              completed={completed}
+            />
           </Card>
 
           <Card className="p-6">
@@ -191,7 +205,12 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
             </div>
             {memberId && (
               <div className="mt-4 border-t border-border pt-4">
-                <ProgressControl bookId={id} initial={myPercent} />
+                <ProgressControl
+                  bookId={id}
+                  progress={myProgress}
+                  defaultPages={book.page_count}
+                  defaultMinutes={book.audiobook_minutes}
+                />
               </div>
             )}
           </Card>

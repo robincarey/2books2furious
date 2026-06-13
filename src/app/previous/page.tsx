@@ -112,7 +112,7 @@ export default async function PreviousBooksPage() {
                           {myReview ? "Edit your review" : "Write a review"} ↓
                         </summary>
                         <div className="mt-3 rounded-lg border border-border p-4">
-                          <ReviewForm bookId={b.id} existing={myReview} />
+                          <ReviewForm bookId={b.id} existing={myReview} completed={iRead} />
                         </div>
                       </details>
                     )}

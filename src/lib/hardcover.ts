@@ -82,15 +82,19 @@ interface SeedBook {
 export async function getRecommendations(opts: {
   history: SeedBook[];
   avoidTitles: string[];
+  limit?: number;
 }): Promise<Recommendation[]> {
   if (!isHardcoverConfigured()) return [];
+  const limit = opts.limit ?? 5;
 
+  // Seed only from the club's top highest-rated reads so a refresh stays a
+  // small, fixed number of Hardcover queries.
   const rated = opts.history.filter((b) => b.avgRating != null);
   const seeds = (
     rated.length > 0
       ? rated.sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0))
       : opts.history
-  ).slice(0, 6);
+  ).slice(0, 5);
   if (seeds.length === 0) return [];
 
   // 1-2. Resolve each seed on Hardcover -> genre weights + favorite authors.
@@ -142,7 +146,7 @@ export async function getRecommendations(opts: {
     });
   }
 
-  for (const author of [...favAuthors.values()].slice(0, 6)) {
+  for (const author of [...favAuthors.values()].slice(0, 5)) {
     for (const doc of await search(author, 8)) consider(doc);
   }
   for (const g of topGenres) {
@@ -169,7 +173,7 @@ export async function getRecommendations(opts: {
     if (a && n >= 2) continue;
     perAuthor.set(a, n + 1);
     scored.push(c);
-    if (scored.length >= 7) break;
+    if (scored.length >= limit) break;
   }
 
   return scored.map((c) => {
