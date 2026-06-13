@@ -10,29 +10,40 @@ import { btn, formatDate, inputClass } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function MeetingsPage() {
+export default async function MeetingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ book_id?: string }>;
+}) {
   if (!isSupabaseConfigured()) return <SetupNotice reason="env" />;
   const members = await getMembers();
   if (members.length === 0) return <SetupNotice reason="schema" />;
 
+  const { book_id: prefillBookId } = await searchParams;
   const memberId = await getCurrentMemberId();
-  const [meetings, books, memberMap] = await Promise.all([
+  const [meetings, suggestedBooks, allBooks, memberMap] = await Promise.all([
     getMeetings(),
+    getBooksWithExtras(null, "suggested"),
     getBooksWithExtras(null),
     membersById(),
   ]);
 
-  const bookMap = new Map(books.map((b) => [b.id, b]));
+  const bookMap = new Map(allBooks.map((b) => [b.id, b]));
   const now = Date.now();
   const upcoming = meetings.filter((m) => new Date(m.meeting_date).getTime() >= now);
   const past = meetings
     .filter((m) => new Date(m.meeting_date).getTime() < now)
     .reverse();
-  const selectable = books.filter((b) => b.status !== "read");
+  const scheduledBookIds = new Set(
+    upcoming.map((m) => m.book_id).filter((id): id is string => Boolean(id)),
+  );
+  const selectable = suggestedBooks.filter((b) => !scheduledBookIds.has(b.id));
+  const defaultBookId =
+    prefillBookId && selectable.some((b) => b.id === prefillBookId) ? prefillBookId : "";
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Meetings" subtitle="Schedule a book and a date. The club does the rest." />
+      <PageHeader title="Meetings" subtitle="Schedule a book and a date." />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_minmax(320px,360px)]">
         <div className="space-y-8">
@@ -86,7 +97,7 @@ export default async function MeetingsPage() {
             <form action={createMeeting} className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Book</label>
-                <select name="book_id" className={inputClass} defaultValue="">
+                <select name="book_id" className={inputClass} defaultValue={defaultBookId}>
                   <option value="">— pick a book (optional) —</option>
                   {selectable.map((b) => (
                     <option key={b.id} value={b.id}>

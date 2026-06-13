@@ -7,7 +7,7 @@ import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { getBooksWithExtras, getMembers } from "@/lib/queries";
 import { getCurrentMemberId } from "@/lib/session";
-import { cn } from "@/lib/utils";
+import { cn, btn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,14 @@ export default async function BacklogPage() {
                       </Badge>
                     ))}
                     {b.suggester && <Badge>via {b.suggester.name.split(" ")[0]}</Badge>}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link
+                      href={`/meetings?book_id=${b.id}`}
+                      className={btn("outline", "sm")}
+                    >
+                      Select this book next
+                    </Link>
                   </div>
                 </div>
                 <form action={toggleVote} className="shrink-0">

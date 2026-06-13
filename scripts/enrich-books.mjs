@@ -172,6 +172,10 @@ const OVERRIDES = {
     genres: ["Science Fiction", "Literary Fiction"],
     cover_url: "https://covers.openlibrary.org/b/isbn/9781784875459-L.jpg",
   },
+  "Between Two Fires": {
+    cover_url: "https://covers.openlibrary.org/b/isbn/9798662731349-L.jpg",
+    isbn: "9798662731349",
+  },
 };
 
 async function main() {
@@ -196,7 +200,8 @@ async function main() {
     if (meta && !b.page_count && meta.page_count) update.page_count = meta.page_count;
     if (meta && !b.isbn && meta.isbn) update.isbn = meta.isbn;
     if (override?.genres) update.genres = override.genres;
-    if (override?.cover_url && !update.cover_url) update.cover_url = override.cover_url;
+    if (override?.cover_url) update.cover_url = override.cover_url;
+    if (override?.isbn) update.isbn = override.isbn;
     if (Object.keys(update).length === 0) {
       console.log(`  = ${b.title}: nothing to change`);
       continue;

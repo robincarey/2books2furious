@@ -21,7 +21,7 @@ import {
   membersById,
 } from "@/lib/queries";
 import { getCurrentMemberId } from "@/lib/session";
-import { minutesToHours, relativeTime } from "@/lib/utils";
+import { minutesToHours, relativeTime, btn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +89,11 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
               )}
               {book.description && (
                 <p className="mt-4 line-clamp-6 text-sm text-muted-foreground">{book.description}</p>
+              )}
+              {book.status === "suggested" && (
+                <Link href={`/meetings?book_id=${book.id}`} className={`${btn("primary", "sm")} mt-4`}>
+                  Select this book next
+                </Link>
               )}
             </div>
           </Card>

@@ -14,16 +14,23 @@ export default async function WrappedPage() {
   const memberMap = await membersById();
   if (memberMap.size === 0) return <SetupNotice reason="schema" />;
 
-  const [books, reviews, reads] = await Promise.all([
-    getBooksWithExtras(null),
+  const [readBooks, reviews, reads] = await Promise.all([
+    getBooksWithExtras(null, "read"),
     getAllReviews(),
     getAllMemberReads(),
   ]);
 
-  // The whole club-read library, not just books tied to a dated meeting.
-  const readBooks = books.filter((b) => b.status === "read");
   const readIds = new Set(readBooks.map((b) => b.id));
   const libraryReviews = reviews.filter((r) => readIds.has(r.book_id));
+
+  const ratingByBook = new Map<string, { sum: number; n: number }>();
+  for (const r of libraryReviews) {
+    if (r.rating == null) continue;
+    const entry = ratingByBook.get(r.book_id) ?? { sum: 0, n: 0 };
+    entry.sum += r.rating;
+    entry.n += 1;
+    ratingByBook.set(r.book_id, entry);
+  }
 
   const totalPages = readBooks.reduce((s, b) => s + (b.page_count ?? 0), 0);
 
@@ -34,7 +41,10 @@ export default async function WrappedPage() {
   const topGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   const ranked = readBooks
-    .map((b) => ({ book: b, avg: b.avg_rating ?? 0, n: b.review_count }))
+    .map((b) => {
+      const r = ratingByBook.get(b.id);
+      return { book: b, avg: r ? r.sum / r.n : 0, n: r?.n ?? 0 };
+    })
     .filter((x) => x.n > 0)
     .sort((a, b) => b.avg - a.avg);
   const favorite = ranked[0];
@@ -47,7 +57,7 @@ export default async function WrappedPage() {
   const topReviewerId = [...reviewsByMember.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   const topReviewer = topReviewerId ? memberMap.get(topReviewerId) : null;
 
-  // Per-member completed reads (member_book_reads).
+  // Per-member completed reads (member_book_reads), club library only.
   const completionsByMember = new Map<string, number>();
   for (const r of reads) {
     if (!readIds.has(r.book_id)) continue;
@@ -56,9 +66,8 @@ export default async function WrappedPage() {
   const topReaderEntry = [...completionsByMember.entries()].sort((a, b) => b[1] - a[1])[0];
   const topReader = topReaderEntry ? memberMap.get(topReaderEntry[0]) : null;
 
-  const avgLen = readBooks.filter((b) => b.page_count).length
-    ? Math.round(totalPages / readBooks.filter((b) => b.page_count).length)
-    : 0;
+  const readWithPages = readBooks.filter((b) => b.page_count);
+  const avgLen = readWithPages.length ? Math.round(totalPages / readWithPages.length) : 0;
 
   return (
     <div className="space-y-8">
@@ -144,7 +153,10 @@ export default async function WrappedPage() {
               <p className="mb-3 text-sm text-muted-foreground">Top genres</p>
               <div className="flex flex-wrap gap-2">
                 {topGenres.map(([g, n]) => (
-                  <Link key={g} href={`/books?genre=${encodeURIComponent(g)}`}>
+                  <Link
+                    key={g}
+                    href={`/books?genre=${encodeURIComponent(g)}&status=read`}
+                  >
                     <Badge tone="secondary">
                       {g} · {n}
                     </Badge>

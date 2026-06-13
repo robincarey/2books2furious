@@ -31,9 +31,10 @@ export function ReviewForm({
     return (
       <div className="space-y-4">
         <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-          ⭐ Mark this book <strong className="text-foreground">Completed</strong> (top of this
-          column) to rate it and write a review. Ratings are only possible once you&apos;ve
-          finished.
+          ⭐ Mark this book{" "}
+          <strong className="text-foreground">Completed</strong>{" "}
+          (top of this column) to rate it and write a review. Ratings are only possible once
+          you&apos;ve finished.
         </div>
         <form action={upsertReview} className="space-y-3">
           <input type="hidden" name="book_id" value={bookId} />

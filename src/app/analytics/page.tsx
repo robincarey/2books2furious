@@ -20,10 +20,12 @@ export default async function AnalyticsPage() {
   ]);
 
   const readBooks = books.filter((b) => b.status === "read");
+  const readIds = new Set(readBooks.map((b) => b.id));
+  const readReviews = reviews.filter((r) => readIds.has(r.book_id));
 
-  // Genre breakdown
+  // Genre breakdown (club library only)
   const genreCounts = new Map<string, number>();
-  for (const b of books) {
+  for (const b of readBooks) {
     for (const g of b.genres) genreCounts.set(g, (genreCounts.get(g) ?? 0) + 1);
   }
   const genreData = [...genreCounts.entries()]
@@ -35,7 +37,7 @@ export default async function AnalyticsPage() {
   const ratingCounts = [1, 2, 3, 4, 5].map((r) => ({
     rating: `${r}★`,
     bucket: r,
-    count: reviews.filter((rv) => rv.rating === r).length,
+    count: readReviews.filter((rv) => rv.rating === r).length,
   }));
 
   // Book length bands
@@ -47,7 +49,7 @@ export default async function AnalyticsPage() {
   ];
   const lengthData = BANDS.map((b) => ({
     ...b,
-    count: books.filter((bk) => bk.page_count != null && bk.page_count >= b.min && bk.page_count <= b.max).length,
+    count: readBooks.filter((bk) => bk.page_count != null && bk.page_count >= b.min && bk.page_count <= b.max).length,
   }));
 
   // Pages over time (by meeting date, books with page counts)
@@ -67,8 +69,8 @@ export default async function AnalyticsPage() {
       ? Math.round(totalPages / readBooks.filter((b) => b.page_count).length)
       : 0;
   const finishRate =
-    reviews.length > 0
-      ? Math.round((reviews.filter((r) => r.finished).length / reviews.length) * 100)
+    readReviews.length > 0
+      ? Math.round((readReviews.filter((r) => r.finished).length / readReviews.length) * 100)
       : 0;
 
   const hasData = books.length > 0 || reviews.length > 0;
