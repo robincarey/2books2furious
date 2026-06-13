@@ -25,13 +25,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Header />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
           <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
-            <p>2 Books 2 Furious</p>
-            <Link
-              href="/suggestions"
-              className="mt-2 inline-block text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Suggest a Feature
-            </Link>
+            <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+              <span>2 Books 2 Furious</span>
+              <span aria-hidden="true">·</span>
+              <Link
+                href="/suggestions"
+                className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Suggest a Feature
+              </Link>
+            </p>
           </footer>
         </ThemeProvider>
       </body>
