@@ -5,14 +5,12 @@ import { addComment } from "@/app/actions";
 import { btn, inputClass } from "@/lib/utils";
 
 export function CommentForm({
-  meetingId,
   bookId,
   progressPercent,
   placeholder = "Add to the discussion…",
   disabled,
 }: {
-  meetingId?: string;
-  bookId?: string;
+  bookId: string;
   progressPercent?: number;
   placeholder?: string;
   disabled?: boolean;
@@ -28,8 +26,7 @@ export function CommentForm({
       }}
       className="space-y-2"
     >
-      {meetingId && <input type="hidden" name="meeting_id" value={meetingId} />}
-      {bookId && <input type="hidden" name="book_id" value={bookId} />}
+      <input type="hidden" name="book_id" value={bookId} />
       {progressPercent != null && (
         <input type="hidden" name="progress_percent" value={progressPercent} />
       )}

@@ -2,17 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { markMeetingRead } from "@/app/actions";
 import { BookCover } from "@/components/book-cover";
-import { CommentForm } from "@/components/comment-form";
-import { CommentList } from "@/components/comment-list";
 import { RsvpControl } from "@/components/rsvp-control";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import {
-  getBook,
-  getCommentsForMeeting,
-  getMeeting,
-  getRsvps,
-  membersById,
-} from "@/lib/queries";
+import { getBook, getMeeting, getRsvps, membersById } from "@/lib/queries";
 import { getCurrentMemberId } from "@/lib/session";
 import type { RsvpStatus } from "@/lib/types";
 import { btn, countdown, formatDateTime } from "@/lib/utils";
@@ -25,9 +17,8 @@ export default async function MeetingDetail({ params }: { params: Promise<{ id: 
   if (!meeting) notFound();
 
   const memberId = await getCurrentMemberId();
-  const [book, comments, rsvps, memberMap] = await Promise.all([
+  const [book, rsvps, memberMap] = await Promise.all([
     meeting.book_id ? getBook(meeting.book_id) : Promise.resolve(null),
-    getCommentsForMeeting(id),
     getRsvps(id),
     membersById(),
   ]);
@@ -78,7 +69,10 @@ export default async function MeetingDetail({ params }: { params: Promise<{ id: 
                     Picked by {picker.name}
                   </p>
                 )}
-                <Link href={`/books/${book.id}`} className={`${btn("outline", "sm")} mt-3`}>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Discussion happens on the book page — spoiler-safe, tied to your reading progress.
+                </p>
+                <Link href={`/books/${book.id}`} className={`${btn("outline", "sm")} mt-2`}>
                   Review &amp; discuss the book →
                 </Link>
               </div>
@@ -91,14 +85,6 @@ export default async function MeetingDetail({ params }: { params: Promise<{ id: 
               <p className="whitespace-pre-wrap text-sm text-muted-foreground">{meeting.notes}</p>
             </Card>
           )}
-
-          <Card className="p-5">
-            <h3 className="mb-4 text-lg font-semibold">Discussion</h3>
-            <div className="mb-5">
-              <CommentForm meetingId={id} disabled={!memberId} />
-            </div>
-            <CommentList comments={comments} members={memberMap} />
-          </Card>
         </div>
 
         <div className="space-y-6">

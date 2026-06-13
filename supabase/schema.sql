@@ -74,8 +74,8 @@ create table if not exists reviews (
 );
 
 -- ---------------------------------------------------------------------------
--- Comments: powers both per-meeting discussion (meeting_id set) and
--- progress-gated book discussion (book_id + progress_percent set).
+-- Comments: progress-gated book discussion (book_id + progress_percent).
+-- meeting_id is retained for historical rows only; new comments are book-scoped.
 -- ---------------------------------------------------------------------------
 create table if not exists comments (
   id               uuid primary key default gen_random_uuid(),

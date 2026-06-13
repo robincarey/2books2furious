@@ -11,7 +11,7 @@ so the browser never holds a credential.
 ## Features
 
 - **Dashboard** — next meeting countdown, the current book, and a per-member reading-progress view.
-- **Meetings** — schedule a book + date, RSVP (going / maybe / can't), per-meeting discussion threads, and "mark as read" wrap-up.
+- **Meetings** — schedule a book + date, RSVP (going / maybe / can't), and "mark as read" wrap-up.
 - **Backlog** — suggest books (autofilled from Google Books, covers from Open Library), upvote, and promote to a meeting.
 - **Reviews** — finished / DNF, 1–5 stars, optional text. One review per member per book.
 - **Leaderboard** — books ranked by average rating, plus member stats (reviews, finishes, generosity, best picker).

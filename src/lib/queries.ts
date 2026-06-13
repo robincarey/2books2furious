@@ -171,16 +171,6 @@ export async function getNextMeeting(): Promise<Meeting | null> {
   return (data as Meeting) ?? null;
 }
 
-export async function getCommentsForMeeting(meetingId: string): Promise<Comment[]> {
-  const supabase = getSupabase();
-  const { data } = await supabase
-    .from("comments")
-    .select("*")
-    .eq("meeting_id", meetingId)
-    .order("created_at", { ascending: true });
-  return (data as Comment[]) ?? [];
-}
-
 /**
  * All progress-gated book comments, ordered by their unlock threshold. The UI
  * decides which to reveal vs. render as locked placeholders based on the

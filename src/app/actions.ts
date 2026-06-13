@@ -226,14 +226,14 @@ export async function upsertReview(formData: FormData) {
 }
 
 // --------------------------------------------------------------------------
-// Discussion comments (meeting threads + spoiler-gated book threads)
+// Spoiler-gated book discussion comments
 // --------------------------------------------------------------------------
 export async function addComment(formData: FormData) {
   const memberId = await requireMember();
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return;
-  const meetingId = String(formData.get("meeting_id") ?? "") || null;
-  const bookId = String(formData.get("book_id") ?? "") || null;
+  const bookId = String(formData.get("book_id") ?? "");
+  if (!bookId) throw new Error("Missing book.");
   const parentId = String(formData.get("parent_id") ?? "") || null;
   const progressRaw = formData.get("progress_percent");
   const progress =
@@ -242,7 +242,6 @@ export async function addComment(formData: FormData) {
       : null;
 
   await getSupabase().from("comments").insert({
-    meeting_id: meetingId,
     book_id: bookId,
     parent_id: parentId,
     member_id: memberId,
@@ -250,8 +249,7 @@ export async function addComment(formData: FormData) {
     progress_percent: progress,
   });
 
-  if (meetingId) revalidatePath(`/meetings/${meetingId}`);
-  if (bookId) revalidatePath(`/books/${bookId}`);
+  revalidatePath(`/books/${bookId}`);
 }
 
 // --------------------------------------------------------------------------
