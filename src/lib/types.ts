@@ -112,3 +112,26 @@ export interface BookSearchResult {
   description: string | null;
   isbn: string | null;
 }
+
+export type ActivityType =
+  | "rating"
+  | "dnf"
+  | "completed"
+  | "meeting"
+  | "comment"
+  | "vote"
+  | "suggestion"
+  | "dismissed";
+
+export interface ActivityItem {
+  id: string;
+  type: ActivityType;
+  member: Member | null;
+  book: Book | null;
+  meeting: Meeting | null;
+  rating: number | null;
+  progress_percent: number | null;
+  created_at: string;
+  summary: string;
+  href: string | null;
+}

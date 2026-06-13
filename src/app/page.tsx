@@ -6,8 +6,10 @@ import {
   getMembers,
   getNextMeeting,
   getProgressForBook,
+  getRecentActivity,
   membersById,
 } from "@/lib/queries";
+import { ActivityFeed } from "@/components/activity-feed";
 import { getCurrentMember } from "@/lib/session";
 import { Avatar } from "@/components/avatar";
 import { BookCover } from "@/components/book-cover";
@@ -29,10 +31,11 @@ export default async function Home() {
     return <SetupNotice reason="schema" />;
   }
 
-  const [me, nextMeeting, allBooks] = await Promise.all([
+  const [me, nextMeeting, allBooks, activity] = await Promise.all([
     getCurrentMember(),
     getNextMeeting(),
     getBooksWithExtras(null),
+    getRecentActivity(20),
   ]);
 
   const readCount = allBooks.filter((b) => b.status === "read").length;
@@ -185,6 +188,8 @@ export default async function Home() {
           </Link>
         </Card>
       </div>
+
+      <ActivityFeed items={activity} />
     </div>
   );
 }

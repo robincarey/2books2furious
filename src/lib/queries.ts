@@ -1,6 +1,7 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import type {
+  ActivityItem,
   Book,
   BookWithExtras,
   Comment,
@@ -11,6 +12,7 @@ import type {
   Review,
   Rsvp,
 } from "./types";
+import { firstName } from "./utils";
 
 export async function getMembers(): Promise<Member[]> {
   const supabase = getSupabase();
@@ -480,4 +482,235 @@ export async function getRotation(): Promise<{
     nextUp,
     lastPicker: lastPickerId ? members.find((m) => m.id === lastPickerId) ?? null : null,
   };
+}
+
+/** Recent club activity aggregated from reviews, reads, meetings, comments, votes, etc. */
+export async function getRecentActivity(limit = 20): Promise<ActivityItem[]> {
+  const supabase = getSupabase();
+  const batch = Math.max(limit * 2, 40);
+
+  const [
+    members,
+    { data: reviews },
+    { data: reads },
+    { data: meetings },
+    { data: comments },
+    { data: votes },
+    { data: suggestedBooks },
+    { data: dismissed },
+  ] = await Promise.all([
+    membersById(),
+    supabase.from("reviews").select("*").order("updated_at", { ascending: false }).limit(batch),
+    supabase
+      .from("member_book_reads")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(batch),
+    supabase.from("meetings").select("*").order("created_at", { ascending: false }).limit(batch),
+    supabase
+      .from("comments")
+      .select("*")
+      .not("book_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(batch),
+    supabase.from("book_votes").select("*").order("created_at", { ascending: false }).limit(batch),
+    supabase
+      .from("books")
+      .select("*")
+      .not("suggested_by", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(batch),
+    supabase
+      .from("dismissed_recommendations")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(batch),
+  ]);
+
+  const bookIds = new Set<string>();
+  for (const r of (reviews as Review[]) ?? []) bookIds.add(r.book_id);
+  for (const r of (reads as { book_id: string }[]) ?? []) bookIds.add(r.book_id);
+  for (const m of (meetings as Meeting[]) ?? []) if (m.book_id) bookIds.add(m.book_id);
+  for (const c of (comments as Comment[]) ?? []) if (c.book_id) bookIds.add(c.book_id);
+  for (const v of (votes as { book_id: string }[]) ?? []) bookIds.add(v.book_id);
+  for (const b of (suggestedBooks as Book[]) ?? []) bookIds.add(b.id);
+
+  const bookMap = new Map<string, Book>();
+  if (bookIds.size > 0) {
+    const { data: bookRows } = await supabase.from("books").select("*").in("id", [...bookIds]);
+    for (const b of (bookRows as Book[]) ?? []) bookMap.set(b.id, b);
+  }
+
+  const bookTitle = (id: string) => bookMap.get(id)?.title ?? "a book";
+  const memberName = (id: string | null) =>
+    id ? firstName(members.get(id)?.name ?? "Someone") : "Someone";
+
+  const items: ActivityItem[] = [];
+
+  for (const r of (reviews as Review[]) ?? []) {
+    const member = members.get(r.member_id) ?? null;
+    const book = bookMap.get(r.book_id) ?? null;
+    const title = book?.title ?? bookTitle(r.book_id);
+
+    if (r.rating != null) {
+      items.push({
+        id: `rating:${r.id}:${r.updated_at}`,
+        type: "rating",
+        member,
+        book,
+        meeting: null,
+        rating: r.rating,
+        progress_percent: null,
+        created_at: r.updated_at,
+        summary: `${memberName(r.member_id)} rated ${title} ${r.rating}★`,
+        href: `/books/${r.book_id}`,
+      });
+    }
+
+    if (r.dnf) {
+      items.push({
+        id: `dnf:${r.id}:${r.updated_at}`,
+        type: "dnf",
+        member,
+        book,
+        meeting: null,
+        rating: null,
+        progress_percent: null,
+        created_at: r.updated_at,
+        summary: `${memberName(r.member_id)} marked ${title} as did not finish`,
+        href: `/books/${r.book_id}`,
+      });
+    }
+  }
+
+  for (const r of (reads as { id: string; member_id: string; book_id: string; created_at: string }[]) ??
+    []) {
+    const member = members.get(r.member_id) ?? null;
+    const book = bookMap.get(r.book_id) ?? null;
+    const title = book?.title ?? bookTitle(r.book_id);
+    items.push({
+      id: `completed:${r.id}`,
+      type: "completed",
+      member,
+      book,
+      meeting: null,
+      rating: null,
+      progress_percent: null,
+      created_at: r.created_at,
+      summary: `${memberName(r.member_id)} marked ${title} as read`,
+      href: `/books/${r.book_id}`,
+    });
+  }
+
+  for (const m of (meetings as Meeting[]) ?? []) {
+    const member = m.picked_by ? members.get(m.picked_by) ?? null : null;
+    const book = m.book_id ? bookMap.get(m.book_id) ?? null : null;
+    const title = book?.title ?? (m.book_id ? bookTitle(m.book_id) : null);
+    const who = memberName(m.picked_by);
+    const summary = title
+      ? `${who} scheduled a meeting for ${title}`
+      : `${who} scheduled a meeting`;
+    items.push({
+      id: `meeting:${m.id}`,
+      type: "meeting",
+      member,
+      book,
+      meeting: m,
+      rating: null,
+      progress_percent: null,
+      created_at: m.created_at,
+      summary,
+      href: `/meetings/${m.id}`,
+    });
+  }
+
+  for (const c of (comments as Comment[]) ?? []) {
+    if (!c.book_id) continue;
+    const member = c.member_id ? members.get(c.member_id) ?? null : null;
+    const book = bookMap.get(c.book_id) ?? null;
+    const title = book?.title ?? bookTitle(c.book_id);
+    const pct = c.progress_percent ?? 0;
+    items.push({
+      id: `comment:${c.id}`,
+      type: "comment",
+      member,
+      book,
+      meeting: null,
+      rating: null,
+      progress_percent: c.progress_percent,
+      created_at: c.created_at,
+      summary: `${memberName(c.member_id)} commented at ${pct}% on ${title}`,
+      href: `/books/${c.book_id}`,
+    });
+  }
+
+  for (const v of (votes as { id: string; book_id: string; member_id: string; created_at: string }[]) ??
+    []) {
+    const member = members.get(v.member_id) ?? null;
+    const book = bookMap.get(v.book_id) ?? null;
+    const title = book?.title ?? bookTitle(v.book_id);
+    items.push({
+      id: `vote:${v.id}`,
+      type: "vote",
+      member,
+      book,
+      meeting: null,
+      rating: null,
+      progress_percent: null,
+      created_at: v.created_at,
+      summary: `${memberName(v.member_id)} upvoted ${title} on the backlog`,
+      href: `/books/${v.book_id}`,
+    });
+  }
+
+  for (const b of (suggestedBooks as Book[]) ?? []) {
+    if (!b.suggested_by) continue;
+    const member = members.get(b.suggested_by) ?? null;
+    items.push({
+      id: `suggestion:${b.id}`,
+      type: "suggestion",
+      member,
+      book: b,
+      meeting: null,
+      rating: null,
+      progress_percent: null,
+      created_at: b.created_at,
+      summary: `${memberName(b.suggested_by)} suggested ${b.title}`,
+      href: `/books/${b.id}`,
+    });
+  }
+
+  for (const d of (dismissed as {
+    id: string;
+    title: string;
+    dismissed_by: string | null;
+    created_at: string;
+  }[]) ?? []) {
+    const member = d.dismissed_by ? members.get(d.dismissed_by) ?? null : null;
+    items.push({
+      id: `dismissed:${d.id}`,
+      type: "dismissed",
+      member,
+      book: null,
+      meeting: null,
+      rating: null,
+      progress_percent: null,
+      created_at: d.created_at,
+      summary: `${memberName(d.dismissed_by)} dismissed a recommendation: ${d.title}`,
+      href: "/recommendations",
+    });
+  }
+
+  items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const seen = new Set<string>();
+  const deduped: ActivityItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    deduped.push(item);
+    if (deduped.length >= limit) break;
+  }
+
+  return deduped;
 }
