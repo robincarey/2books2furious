@@ -2,9 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { markMeetingRead } from "@/app/actions";
 import { BookCover } from "@/components/book-cover";
+import { MeetingEditForm } from "@/components/meeting-edit-form";
 import { RsvpControl } from "@/components/rsvp-control";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { getBook, getMeeting, getRsvps, membersById } from "@/lib/queries";
+import {
+  getBook,
+  getEligibleBooksForMeeting,
+  getMeeting,
+  getMembers,
+  getRsvps,
+  membersById,
+} from "@/lib/queries";
 import { getCurrentMemberId } from "@/lib/session";
 import type { RsvpStatus } from "@/lib/types";
 import { btn, countdown, formatDateTime } from "@/lib/utils";
@@ -17,10 +25,12 @@ export default async function MeetingDetail({ params }: { params: Promise<{ id: 
   if (!meeting) notFound();
 
   const memberId = await getCurrentMemberId();
-  const [book, rsvps, memberMap] = await Promise.all([
+  const [book, rsvps, memberMap, members, eligibleBooks] = await Promise.all([
     meeting.book_id ? getBook(meeting.book_id) : Promise.resolve(null),
     getRsvps(id),
     membersById(),
+    getMembers(),
+    getEligibleBooksForMeeting(id),
   ]);
 
   const picker = meeting.picked_by ? memberMap.get(meeting.picked_by) : null;
@@ -86,6 +96,21 @@ export default async function MeetingDetail({ params }: { params: Promise<{ id: 
         </div>
 
         <div className="space-y-6">
+          <Card className="p-5">
+            <h3 className="mb-3 text-sm font-semibold">Meeting details</h3>
+            <MeetingEditForm
+              meetingId={id}
+              meetingDate={meeting.meeting_date}
+              bookId={meeting.book_id}
+              pickedBy={meeting.picked_by}
+              notes={meeting.notes}
+              isPast={isPast}
+              eligibleBooks={eligibleBooks}
+              members={members}
+              disabled={!memberId}
+            />
+          </Card>
+
           <Card className="p-5">
             <h3 className="mb-3 text-sm font-semibold">Your RSVP</h3>
             <RsvpControl meetingId={id} current={myRsvp} disabled={!memberId} />

@@ -182,6 +182,48 @@ export async function getMeeting(id: string): Promise<Meeting | null> {
   return (data as Meeting) ?? null;
 }
 
+/** Books that can be assigned when creating or editing a meeting. */
+export async function getEligibleBooksForMeeting(
+  meetingId: string | null,
+): Promise<BookWithExtras[]> {
+  const [suggestedBooks, meetings, meeting] = await Promise.all([
+    getBooksWithExtras(null, "suggested"),
+    getMeetings(),
+    meetingId ? getMeeting(meetingId) : Promise.resolve(null),
+  ]);
+
+  const now = Date.now();
+  const scheduledInOtherUpcoming = new Set(
+    meetings
+      .filter(
+        (m) =>
+          m.id !== meetingId &&
+          new Date(m.meeting_date).getTime() >= now &&
+          m.book_id,
+      )
+      .map((m) => m.book_id as string),
+  );
+
+  const eligible = suggestedBooks.filter((b) => !scheduledInOtherUpcoming.has(b.id));
+
+  const currentBookId = meeting?.book_id ?? null;
+  if (currentBookId && !eligible.some((b) => b.id === currentBookId)) {
+    const current = await getBook(currentBookId);
+    if (current) {
+      eligible.unshift({
+        ...current,
+        suggester: null,
+        votes: 0,
+        voted_by_me: false,
+        avg_rating: null,
+        review_count: 0,
+      });
+    }
+  }
+
+  return eligible;
+}
+
 export async function getNextMeeting(): Promise<Meeting | null> {
   const supabase = getSupabase();
   const { data } = await supabase

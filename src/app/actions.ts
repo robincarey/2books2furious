@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
+import { getEligibleBooksForMeeting } from "@/lib/queries";
 import { getCurrentMemberId } from "@/lib/session";
 import { MEMBER_COOKIE } from "@/lib/session";
 import { notifyDiscord } from "@/lib/discord";
@@ -149,6 +150,88 @@ export async function createMeeting(formData: FormData) {
   revalidatePath("/meetings");
   revalidatePath("/");
   if (meeting?.id) redirect(`/meetings/${meeting.id}`);
+}
+
+function revalidateMeetingPaths(meetingId: string) {
+  revalidatePath(`/meetings/${meetingId}`);
+  revalidatePath("/meetings");
+  revalidatePath("/");
+  revalidatePath("/backlog");
+  revalidatePath("/leaderboard");
+}
+
+export async function updateMeeting(formData: FormData) {
+  await requireMember();
+  const meetingId = String(formData.get("meeting_id") ?? "");
+  if (!meetingId) throw new Error("Missing meeting.");
+
+  const supabase = getSupabase();
+  const { data: existing } = await supabase
+    .from("meetings")
+    .select("*")
+    .eq("id", meetingId)
+    .single();
+  if (!existing) throw new Error("Meeting not found.");
+
+  const isPast = new Date(existing.meeting_date as string).getTime() < Date.now();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (isPast) {
+    await supabase.from("meetings").update({ notes }).eq("id", meetingId);
+    revalidateMeetingPaths(meetingId);
+    return;
+  }
+
+  const date = String(formData.get("meeting_date") ?? "");
+  if (!date) throw new Error("A meeting date is required.");
+
+  const bookId = String(formData.get("book_id") ?? "") || null;
+  const pickedBy = String(formData.get("picked_by") ?? "") || null;
+  const oldBookId = (existing.book_id as string | null) ?? null;
+
+  if (bookId) {
+    const eligible = await getEligibleBooksForMeeting(meetingId);
+    if (!eligible.some((b) => b.id === bookId)) {
+      throw new Error("That book isn't available for this meeting.");
+    }
+  }
+
+  await supabase
+    .from("meetings")
+    .update({
+      meeting_date: new Date(date).toISOString(),
+      book_id: bookId,
+      picked_by: pickedBy,
+      notes,
+    })
+    .eq("id", meetingId);
+
+  if (bookId !== oldBookId) {
+    if (bookId) {
+      await supabase.from("books").update({ status: "scheduled" }).eq("id", bookId);
+    }
+    if (oldBookId) {
+      const { data: otherMeetings } = await supabase
+        .from("meetings")
+        .select("id")
+        .eq("book_id", oldBookId)
+        .neq("id", meetingId)
+        .gte("meeting_date", new Date().toISOString());
+      const { data: oldBook } = await supabase
+        .from("books")
+        .select("status")
+        .eq("id", oldBookId)
+        .single();
+      if (
+        oldBook?.status === "scheduled" &&
+        (!otherMeetings || otherMeetings.length === 0)
+      ) {
+        await supabase.from("books").update({ status: "suggested" }).eq("id", oldBookId);
+      }
+    }
+  }
+
+  revalidateMeetingPaths(meetingId);
 }
 
 export async function markMeetingRead(formData: FormData) {
