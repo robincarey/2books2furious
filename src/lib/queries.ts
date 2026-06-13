@@ -644,8 +644,22 @@ export async function getRecentActivity(limit = 20): Promise<ActivityItem[]> {
     });
   }
 
+  const suggestionMeta = new Map<string, { suggested_by: string; created_at: string }>();
+  for (const b of (suggestedBooks as Book[]) ?? []) {
+    if (b.suggested_by) suggestionMeta.set(b.id, { suggested_by: b.suggested_by, created_at: b.created_at });
+  }
+
   for (const v of (votes as { id: string; book_id: string; member_id: string; created_at: string }[]) ??
     []) {
+    const suggestion = suggestionMeta.get(v.book_id);
+    if (
+      suggestion &&
+      suggestion.suggested_by === v.member_id &&
+      Math.abs(new Date(v.created_at).getTime() - new Date(suggestion.created_at).getTime()) <= 2000
+    ) {
+      continue;
+    }
+
     const member = members.get(v.member_id) ?? null;
     const book = bookMap.get(v.book_id) ?? null;
     const title = book?.title ?? bookTitle(v.book_id);

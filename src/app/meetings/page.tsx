@@ -62,7 +62,6 @@ export default async function MeetingsPage({
                     date={m.meeting_date}
                     book={m.book_id ? bookMap.get(m.book_id) : undefined}
                     picker={m.picked_by ? memberMap.get(m.picked_by)?.name : undefined}
-                    location={m.location}
                     upcoming
                   />
                 ))}
@@ -83,7 +82,6 @@ export default async function MeetingsPage({
                     date={m.meeting_date}
                     book={m.book_id ? bookMap.get(m.book_id) : undefined}
                     picker={m.picked_by ? memberMap.get(m.picked_by)?.name : undefined}
-                    location={m.location}
                   />
                 ))}
               </div>
@@ -126,12 +124,6 @@ export default async function MeetingsPage({
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Location / link
-                </label>
-                <input name="location" className={inputClass} placeholder="Discord, someone's place…" />
-              </div>
-              <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</label>
                 <textarea name="notes" rows={2} className={inputClass} />
               </div>
@@ -154,14 +146,12 @@ function MeetingRow({
   date,
   book,
   picker,
-  location,
   upcoming,
 }: {
   id: string;
   date: string;
   book?: { title: string; author: string | null; cover_url: string | null };
   picker?: string;
-  location: string | null;
   upcoming?: boolean;
 }) {
   return (
@@ -177,7 +167,6 @@ function MeetingRow({
           <p className="truncate text-xs text-muted-foreground">
             {book?.author}
             {picker ? ` · picked by ${picker.split(" ")[0]}` : ""}
-            {location ? ` · ${location}` : ""}
           </p>
         </div>
       </Card>

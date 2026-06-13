@@ -101,9 +101,6 @@ export default async function Home() {
                     Book not chosen yet
                   </p>
                 )}
-                {nextMeeting.location && (
-                  <p className="mt-2 text-sm text-muted-foreground">📍 {nextMeeting.location}</p>
-                )}
                 <Link
                   href={`/meetings/${nextMeeting.id}`}
                   className={`${btn("outline", "sm")} mt-4`}

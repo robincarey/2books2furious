@@ -126,7 +126,6 @@ export async function createMeeting(formData: FormData) {
     .insert({
       book_id: bookId,
       meeting_date: new Date(date).toISOString(),
-      location: String(formData.get("location") ?? "").trim() || null,
       picked_by: pickedBy,
       notes: String(formData.get("notes") ?? "").trim() || null,
     })

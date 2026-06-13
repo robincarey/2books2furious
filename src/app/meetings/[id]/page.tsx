@@ -40,9 +40,7 @@ export default async function MeetingDetail({ params }: { params: Promise<{ id: 
 
       <PageHeader
         title={book?.title ?? "Book TBD"}
-        subtitle={`${formatDateTime(meeting.meeting_date)}${
-          meeting.location ? ` · ${meeting.location}` : ""
-        }`}
+        subtitle={formatDateTime(meeting.meeting_date)}
         action={<Badge tone={isPast ? "muted" : "primary"}>{isPast ? "past" : countdown(meeting.meeting_date)}</Badge>}
       />
 

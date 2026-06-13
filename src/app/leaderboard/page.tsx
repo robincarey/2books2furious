@@ -31,8 +31,6 @@ export default async function LeaderboardPage() {
         />
       ) : (
         <>
-          <LeaderboardHighlights stats={memberStats} />
-
           <Card className="overflow-hidden">
             <div className="border-b border-border px-5 py-4">
               <h2 className="font-semibold">Books by average rating</h2>
@@ -101,6 +99,8 @@ export default async function LeaderboardPage() {
               </table>
             </div>
           </Card>
+
+          <LeaderboardHighlights stats={memberStats} />
         </>
       )}
     </div>
