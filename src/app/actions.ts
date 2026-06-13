@@ -177,6 +177,46 @@ export async function setRsvp(formData: FormData) {
 // --------------------------------------------------------------------------
 // Reviews
 // --------------------------------------------------------------------------
+async function syncMemberCompleted(
+  supabase: ReturnType<typeof getSupabase>,
+  memberId: string,
+  bookId: string,
+  completed: boolean,
+) {
+  const { data: existing } = await supabase
+    .from("member_book_reads")
+    .select("id")
+    .eq("book_id", bookId)
+    .eq("member_id", memberId)
+    .maybeSingle();
+
+  if (completed && !existing) {
+    await supabase.from("member_book_reads").insert({ book_id: bookId, member_id: memberId });
+    const { data: prog } = await supabase
+      .from("reading_progress")
+      .select("unit, total")
+      .eq("book_id", bookId)
+      .eq("member_id", memberId)
+      .maybeSingle();
+    const unit = prog?.unit ?? "percent";
+    const total = prog?.total ?? null;
+    await supabase.from("reading_progress").upsert(
+      {
+        member_id: memberId,
+        book_id: bookId,
+        percent: 100,
+        unit,
+        position: total ?? 100,
+        total: total ?? (unit === "percent" ? 100 : null),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "member_id,book_id" },
+    );
+  } else if (!completed && existing) {
+    await supabase.from("member_book_reads").delete().eq("id", existing.id);
+  }
+}
+
 export async function upsertReview(formData: FormData) {
   const memberId = await requireMember();
   const bookId = String(formData.get("book_id") ?? "");
@@ -184,26 +224,35 @@ export async function upsertReview(formData: FormData) {
 
   const supabase = getSupabase();
 
-  // Completion is the single source of truth (member_book_reads). Ratings and
-  // review text are only accepted once a member has marked the book completed.
-  const { data: completedRow } = await supabase
-    .from("member_book_reads")
-    .select("id")
+  const wantsCompleted = formData.get("completed") === "on";
+  const wantsDnf = formData.get("dnf") === "on";
+  const dnf = wantsDnf && !wantsCompleted;
+
+  await syncMemberCompleted(supabase, memberId, bookId, wantsCompleted);
+
+  const { data: priorReview } = await supabase
+    .from("reviews")
+    .select("rating, body")
     .eq("book_id", bookId)
     .eq("member_id", memberId)
     .maybeSingle();
-  const completed = Boolean(completedRow);
 
-  const dnf = !completed && formData.get("dnf") === "on";
-  const ratingRaw = Number(formData.get("rating"));
-  const rating = completed && ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
-  const body = completed ? String(formData.get("body") ?? "").trim() || null : null;
+  let rating: number | null = null;
+  let body: string | null = null;
+  if (wantsCompleted) {
+    const ratingRaw = Number(formData.get("rating"));
+    rating = ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
+    body = String(formData.get("body") ?? "").trim() || null;
+  } else if (priorReview) {
+    rating = priorReview.rating;
+    body = priorReview.body;
+  }
 
   await supabase.from("reviews").upsert(
     {
       book_id: bookId,
       member_id: memberId,
-      finished: completed,
+      finished: wantsCompleted,
       dnf,
       rating,
       body,
@@ -274,34 +323,13 @@ export async function toggleMemberRead(formData: FormData) {
       .eq("book_id", bookId)
       .eq("member_id", memberId);
   } else {
-    await supabase.from("member_book_reads").insert({ book_id: bookId, member_id: memberId });
+    await syncMemberCompleted(supabase, memberId, bookId, true);
     // Completed and DNF are mutually exclusive.
     await supabase
       .from("reviews")
       .update({ finished: true, dnf: false })
       .eq("book_id", bookId)
       .eq("member_id", memberId);
-    // Completing a book implies 100% progress — keep them in sync.
-    const { data: prog } = await supabase
-      .from("reading_progress")
-      .select("unit, total")
-      .eq("book_id", bookId)
-      .eq("member_id", memberId)
-      .maybeSingle();
-    const unit = prog?.unit ?? "percent";
-    const total = prog?.total ?? null;
-    await supabase.from("reading_progress").upsert(
-      {
-        member_id: memberId,
-        book_id: bookId,
-        percent: 100,
-        unit,
-        position: total ?? 100,
-        total: total ?? (unit === "percent" ? 100 : null),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "member_id,book_id" },
-    );
   }
   revalidatePath("/previous");
   revalidatePath("/");

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { BookCover } from "@/components/book-cover";
-import { ReadToggle } from "@/components/read-toggle";
 import { ReviewForm } from "@/components/review-form";
 import { StarsDisplay } from "@/components/star-rating";
 import { SetupNotice } from "@/components/setup-notice";
@@ -62,7 +61,6 @@ export default async function PreviousBooksPage() {
                         </Link>
                         <p className="text-sm text-muted-foreground">{b.author}</p>
                       </div>
-                      <ReadToggle bookId={b.id} read={iRead} disabled={!memberId} size="sm" />
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">

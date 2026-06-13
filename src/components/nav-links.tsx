@@ -27,13 +27,13 @@ export function NavLinks() {
 
   return (
     <>
-      <nav className="hidden items-center gap-1 lg:flex">
+      <nav className="hidden min-w-0 items-center gap-0.5 lg:flex">
         {LINKS.map((l) => (
           <Link
             key={l.href}
             href={l.href}
             className={cn(
-              "rounded-md px-3 py-2 text-sm font-medium transition",
+              "shrink-0 whitespace-nowrap rounded-md px-2 py-1.5 text-[13px] font-medium transition",
               isActive(pathname, l.href)
                 ? "bg-primary/15 text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",

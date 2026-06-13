@@ -6,7 +6,6 @@ import { CommentForm } from "@/components/comment-form";
 import { CommentList } from "@/components/comment-list";
 import { ProgressControl } from "@/components/progress-control";
 import { SelectIdentityBanner } from "@/components/select-identity-banner";
-import { ReadToggle } from "@/components/read-toggle";
 import { ReviewForm } from "@/components/review-form";
 import { StarsDisplay } from "@/components/star-rating";
 import { Badge, Card, PageHeader, ProgressBar } from "@/components/ui";
@@ -163,10 +162,7 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
 
         <div className="space-y-6">
           <Card className="p-6">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold">Completed by</h2>
-              <ReadToggle bookId={id} read={completed} disabled={!memberId} size="sm" />
-            </div>
+            <h2 className="mb-3 text-lg font-semibold">Completed by</h2>
             {readerSet.size === 0 ? (
               <p className="text-sm text-muted-foreground">No one has marked this completed yet.</p>
             ) : (
