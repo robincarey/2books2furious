@@ -34,12 +34,13 @@ export function CommentList({
   comments: Comment[];
   members: Map<string, Member>;
   showProgress?: boolean;
-  /** When set, comments above this percent render as locked placeholders. */
+  /** When set (or when showProgress), comments above this percent render as locked placeholders. */
   viewerPercent?: number;
 }) {
-  const gated = viewerPercent != null;
+  const effectiveViewerPercent = showProgress ? (viewerPercent ?? 0) : viewerPercent;
+  const gated = effectiveViewerPercent != null;
   const lockedAhead = gated
-    ? comments.filter((c) => (c.progress_percent ?? 0) > viewerPercent).length
+    ? comments.filter((c) => (c.progress_percent ?? 0) > (effectiveViewerPercent as number)).length
     : 0;
 
   if (comments.length === 0) {
@@ -57,7 +58,7 @@ export function CommentList({
       <ul className="space-y-4">
         {comments.map((c) => {
           const threshold = c.progress_percent ?? 0;
-          if (gated && threshold > (viewerPercent as number)) {
+          if (gated && threshold > (effectiveViewerPercent as number)) {
             return <LockedComment key={c.id} percent={threshold} />;
           }
           const m = c.member_id ? members.get(c.member_id) : null;

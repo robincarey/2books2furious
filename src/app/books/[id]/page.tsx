@@ -5,6 +5,7 @@ import { BookCover } from "@/components/book-cover";
 import { CommentForm } from "@/components/comment-form";
 import { CommentList } from "@/components/comment-list";
 import { ProgressControl } from "@/components/progress-control";
+import { SelectIdentityBanner } from "@/components/select-identity-banner";
 import { ReadToggle } from "@/components/read-toggle";
 import { ReviewForm } from "@/components/review-form";
 import { StarsDisplay } from "@/components/star-rating";
@@ -48,11 +49,15 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
   const avg = ratings.length ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null;
   const progressByMember = new Map(progress.map((p) => [p.member_id, p.percent]));
 
+  const members = [...memberMap.values()].sort((a, b) => a.selection_order - b.selection_order);
+
   return (
     <div className="space-y-6">
       <Link href="/backlog" className="text-sm text-muted-foreground hover:text-foreground">
         ← Back
       </Link>
+
+      {!memberId && <SelectIdentityBanner members={members} redirectTo={`/books/${id}`} />}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -128,7 +133,7 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
           <Card className="p-6">
             <div className="mb-1 flex items-center gap-2">
               <h2 className="text-lg font-semibold">Spoiler-safe discussion</h2>
-              <Badge tone="secondary">@ {memberId ? myPercent : 100}%</Badge>
+              <Badge tone="secondary">@ {myPercent}%</Badge>
             </div>
             <p className="mb-4 text-sm text-muted-foreground">
               You only see comments posted at or below your reading progress. Set your progress to
@@ -146,7 +151,7 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
               comments={bookComments}
               members={memberMap}
               showProgress
-              viewerPercent={memberId ? myPercent : undefined}
+              viewerPercent={myPercent}
             />
           </Card>
         </div>
@@ -203,16 +208,20 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
                   );
                 })}
             </div>
-            {memberId && (
-              <div className="mt-4 border-t border-border pt-4">
+            <div className="mt-4 border-t border-border pt-4">
+              {memberId ? (
                 <ProgressControl
                   bookId={id}
                   progress={myProgress}
                   defaultPages={book.page_count}
                   defaultMinutes={book.audiobook_minutes}
                 />
-              </div>
-            )}
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Select who you are first to update your reading progress.
+                </p>
+              )}
+            </div>
           </Card>
         </div>
       </div>
