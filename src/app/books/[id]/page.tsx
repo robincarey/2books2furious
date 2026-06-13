@@ -5,6 +5,7 @@ import { BookCover } from "@/components/book-cover";
 import { CommentForm } from "@/components/comment-form";
 import { CommentList } from "@/components/comment-list";
 import { ProgressControl } from "@/components/progress-control";
+import { RemoveFromBacklogButton } from "@/components/remove-from-backlog-button";
 import { SelectIdentityBanner } from "@/components/select-identity-banner";
 import { ReviewForm } from "@/components/review-form";
 import { StarsDisplay } from "@/components/star-rating";
@@ -90,9 +91,16 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
                 <p className="mt-4 line-clamp-6 text-sm text-muted-foreground">{book.description}</p>
               )}
               {book.status === "suggested" && (
-                <Link href={`/meetings?book_id=${book.id}`} className={`${btn("primary", "sm")} mt-4`}>
-                  Select this book next
-                </Link>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link href={`/meetings?book_id=${book.id}`} className={btn("primary", "sm")}>
+                    Select this book next
+                  </Link>
+                  <RemoveFromBacklogButton
+                    bookId={book.id}
+                    bookTitle={book.title}
+                    disabled={!memberId}
+                  />
+                </div>
               )}
             </div>
           </Card>

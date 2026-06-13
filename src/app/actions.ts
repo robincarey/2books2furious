@@ -110,6 +110,44 @@ export async function toggleVote(formData: FormData) {
   revalidatePath("/backlog");
 }
 
+export async function removeBookFromBacklog(formData: FormData) {
+  await requireMember();
+  const bookId = String(formData.get("book_id") ?? "");
+  if (!bookId) throw new Error("Missing book.");
+
+  const supabase = getSupabase();
+  const { data: book } = await supabase
+    .from("books")
+    .select("id, status")
+    .eq("id", bookId)
+    .maybeSingle();
+
+  if (!book) throw new Error("Book not found.");
+  if (book.status !== "suggested") {
+    throw new Error("Only backlog suggestions can be removed.");
+  }
+
+  const { data: meetings } = await supabase
+    .from("meetings")
+    .select("id")
+    .eq("book_id", bookId)
+    .limit(1);
+
+  if (meetings && meetings.length > 0) {
+    throw new Error("Can't remove: book is/was a club pick");
+  }
+
+  const { error } = await supabase.from("books").delete().eq("id", bookId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/backlog");
+  revalidatePath("/");
+  revalidatePath("/books");
+  revalidatePath("/rotation");
+  revalidatePath("/leaderboard");
+  redirect("/backlog");
+}
+
 // --------------------------------------------------------------------------
 // Meetings
 // --------------------------------------------------------------------------

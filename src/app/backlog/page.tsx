@@ -2,6 +2,7 @@ import Link from "next/link";
 import { toggleVote } from "@/app/actions";
 import { AddBookForm } from "@/components/add-book-form";
 import { BookCover } from "@/components/book-cover";
+import { RemoveFromBacklogButton } from "@/components/remove-from-backlog-button";
 import { SetupNotice } from "@/components/setup-notice";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -60,6 +61,12 @@ export default async function BacklogPage() {
                     >
                       Select this book next
                     </Link>
+                    <RemoveFromBacklogButton
+                      bookId={b.id}
+                      bookTitle={b.title}
+                      disabled={!memberId}
+                      label="Remove"
+                    />
                   </div>
                 </div>
                 <form action={toggleVote} className="shrink-0">
