@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { BookCover } from "@/components/book-cover";
+import { LeaderboardHighlights } from "@/components/leaderboard-highlights";
 import { StarsDisplay } from "@/components/star-rating";
 import { SetupNotice } from "@/components/setup-notice";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
@@ -19,13 +20,6 @@ export default async function LeaderboardPage() {
     getMemberLeaderboard(),
   ]);
 
-  const mostGenerous = [...memberStats]
-    .filter((m) => m.avg_given != null)
-    .sort((a, b) => (b.avg_given ?? 0) - (a.avg_given ?? 0))[0];
-  const bestPicker = [...memberStats]
-    .filter((m) => m.avg_pick_rating != null)
-    .sort((a, b) => (b.avg_pick_rating ?? 0) - (a.avg_pick_rating ?? 0))[0];
-
   return (
     <div className="space-y-8">
       <PageHeader title="Leaderboard" subtitle="Average ratings across everything we've read." />
@@ -37,40 +31,7 @@ export default async function LeaderboardPage() {
         />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {bestPicker && (
-              <Card className="p-5">
-                <p className="text-sm text-muted-foreground">Best picker</p>
-                <div className="mt-2 flex items-center gap-3">
-                  <Avatar name={bestPicker.member.name} color={bestPicker.member.color} size={36} />
-                  <div>
-                    <p className="font-semibold">{bestPicker.member.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      picks avg {bestPicker.avg_pick_rating?.toFixed(2)}★
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            )}
-            {mostGenerous && (
-              <Card className="p-5">
-                <p className="text-sm text-muted-foreground">Most generous rater</p>
-                <div className="mt-2 flex items-center gap-3">
-                  <Avatar
-                    name={mostGenerous.member.name}
-                    color={mostGenerous.member.color}
-                    size={36}
-                  />
-                  <div>
-                    <p className="font-semibold">{mostGenerous.member.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      gives avg {mostGenerous.avg_given?.toFixed(2)}★
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            )}
-          </div>
+          <LeaderboardHighlights stats={memberStats} />
 
           <Card className="overflow-hidden">
             <div className="border-b border-border px-5 py-4">

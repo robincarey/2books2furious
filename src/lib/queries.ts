@@ -302,6 +302,7 @@ export async function getBookLeaderboard(): Promise<BookLeaderRow[]> {
 export interface MemberStatRow {
   member: Member;
   reviews_written: number;
+  ratings_given: number;
   avg_given: number | null;
   books_finished: number;
   picks: number;
@@ -362,6 +363,7 @@ export async function getMemberLeaderboard(): Promise<MemberStatRow[]> {
     return {
       member,
       reviews_written: mine.length,
+      ratings_given: rated.length,
       avg_given:
         rated.length > 0 ? rated.reduce((s, r) => s + r.rating, 0) / rated.length : null,
       books_finished: finishedByMember.get(member.id) ?? 0,
