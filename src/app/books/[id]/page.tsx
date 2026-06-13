@@ -51,6 +51,19 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
 
   const members = [...memberMap.values()].sort((a, b) => a.selection_order - b.selection_order);
 
+  const progressControl = memberId ? (
+    <ProgressControl
+      bookId={id}
+      progress={myProgress}
+      defaultPages={book.page_count}
+      defaultMinutes={book.audiobook_minutes}
+    />
+  ) : (
+    <p className="text-sm text-muted-foreground">
+      Select who you are first to update your reading progress.
+    </p>
+  );
+
   return (
     <div className="space-y-6">
       <Link href="/backlog" className="text-sm text-muted-foreground hover:text-foreground">
@@ -142,6 +155,11 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
             )}
           </Card>
 
+          <Card className="p-6 lg:hidden">
+            <h2 className="mb-4 text-lg font-semibold">Your reading progress</h2>
+            {progressControl}
+          </Card>
+
           <Card className="p-6">
             <div className="mb-1 flex items-center gap-2">
               <h2 className="text-lg font-semibold">Spoiler-safe discussion</h2>
@@ -217,19 +235,8 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
                   );
                 })}
             </div>
-            <div className="mt-4 border-t border-border pt-4">
-              {memberId ? (
-                <ProgressControl
-                  bookId={id}
-                  progress={myProgress}
-                  defaultPages={book.page_count}
-                  defaultMinutes={book.audiobook_minutes}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Select who you are first to update your reading progress.
-                </p>
-              )}
+            <div className="mt-4 hidden border-t border-border pt-4 lg:block">
+              {progressControl}
             </div>
           </Card>
         </div>
