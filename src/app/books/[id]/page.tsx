@@ -1,0 +1,174 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Avatar } from "@/components/avatar";
+import { BookCover } from "@/components/book-cover";
+import { CommentForm } from "@/components/comment-form";
+import { CommentList } from "@/components/comment-list";
+import { ProgressControl } from "@/components/progress-control";
+import { ReviewForm } from "@/components/review-form";
+import { StarsDisplay } from "@/components/star-rating";
+import { Badge, Card, PageHeader, ProgressBar } from "@/components/ui";
+import {
+  getBook,
+  getMyProgress,
+  getMyReview,
+  getProgressForBook,
+  getReviewsForBook,
+  getSpoilerComments,
+  membersById,
+} from "@/lib/queries";
+import { getCurrentMemberId } from "@/lib/session";
+import { minutesToHours, relativeTime } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+export default async function BookDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const book = await getBook(id);
+  if (!book) notFound();
+
+  const memberId = await getCurrentMemberId();
+  const [reviews, memberMap, progress, myReview, myProgress] = await Promise.all([
+    getReviewsForBook(id),
+    membersById(),
+    getProgressForBook(id),
+    memberId ? getMyReview(id, memberId) : Promise.resolve(null),
+    memberId ? getMyProgress(id, memberId) : Promise.resolve(null),
+  ]);
+
+  const myPercent = myProgress?.percent ?? 0;
+  const spoilerComments = await getSpoilerComments(id, memberId ? myPercent : 100);
+
+  const ratings = reviews.filter((r) => r.rating != null).map((r) => r.rating as number);
+  const avg = ratings.length ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null;
+  const progressByMember = new Map(progress.map((p) => [p.member_id, p.percent]));
+
+  return (
+    <div className="space-y-6">
+      <Link href="/backlog" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Back
+      </Link>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Card className="flex flex-col gap-5 p-6 sm:flex-row">
+            <BookCover url={book.cover_url} title={book.title} width={130} />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-bold">{book.title}</h1>
+              <p className="text-muted-foreground">{book.author}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Badge tone={book.status === "read" ? "success" : book.status === "scheduled" ? "primary" : "muted"}>
+                  {book.status}
+                </Badge>
+                {book.page_count && <Badge>{book.page_count} pages</Badge>}
+                {book.audiobook_minutes && <Badge>🎧 {minutesToHours(book.audiobook_minutes)}</Badge>}
+                {book.genres.map((g) => (
+                  <Badge key={g} tone="secondary">
+                    {g}
+                  </Badge>
+                ))}
+              </div>
+              {avg != null && (
+                <div className="mt-3 flex items-center gap-2">
+                  <StarsDisplay value={avg} />
+                  <span className="text-sm font-medium">{avg.toFixed(2)}</span>
+                  <span className="text-sm text-muted-foreground">
+                    ({ratings.length} rating{ratings.length === 1 ? "" : "s"})
+                  </span>
+                </div>
+              )}
+              {book.description && (
+                <p className="mt-4 line-clamp-6 text-sm text-muted-foreground">{book.description}</p>
+              )}
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="mb-4 text-lg font-semibold">Reviews</h2>
+            {reviews.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No reviews yet.</p>
+            ) : (
+              <ul className="space-y-5">
+                {reviews.map((r) => {
+                  const m = memberMap.get(r.member_id);
+                  return (
+                    <li key={r.id} className="flex gap-3">
+                      {m && <Avatar name={m.name} color={m.color} size={36} />}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold">{m?.name}</span>
+                          {r.rating != null && <StarsDisplay value={r.rating} size={14} />}
+                          {r.dnf && <Badge tone="warning">DNF</Badge>}
+                          {r.finished && !r.dnf && <Badge tone="success">finished</Badge>}
+                          <span className="text-xs text-muted-foreground">
+                            {relativeTime(r.updated_at)}
+                          </span>
+                        </div>
+                        {r.body && (
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/90">
+                            {r.body}
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+
+          <Card className="p-6">
+            <div className="mb-1 flex items-center gap-2">
+              <h2 className="text-lg font-semibold">Spoiler-safe discussion</h2>
+              <Badge tone="secondary">@ {memberId ? myPercent : 100}%</Badge>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              You only see comments posted at or below your reading progress. Set your progress to
+              reveal more — and to tag where your own comments belong.
+            </p>
+            <div className="mb-5">
+              <CommentForm
+                bookId={id}
+                progressPercent={memberId ? myPercent : undefined}
+                placeholder="Discuss up to where you are…"
+                disabled={!memberId}
+              />
+            </div>
+            <CommentList comments={spoilerComments} members={memberMap} showProgress />
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h2 className="mb-4 text-lg font-semibold">Your review</h2>
+            <ReviewForm bookId={id} existing={myReview} disabled={!memberId} />
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="mb-4 text-lg font-semibold">Reading progress</h2>
+            <div className="space-y-3">
+              {[...memberMap.values()]
+                .sort((a, b) => a.selection_order - b.selection_order)
+                .map((m) => {
+                  const pct = progressByMember.get(m.id) ?? 0;
+                  return (
+                    <div key={m.id} className="flex items-center gap-3">
+                      <Avatar name={m.name} color={m.color} size={24} />
+                      <span className="w-20 shrink-0 truncate text-sm">{m.name.split(" ")[0]}</span>
+                      <ProgressBar value={pct} color={m.color} />
+                      <span className="w-9 text-right text-xs text-muted-foreground">{pct}%</span>
+                    </div>
+                  );
+                })}
+            </div>
+            {memberId && (
+              <div className="mt-4 border-t border-border pt-4">
+                <ProgressControl bookId={id} initial={myPercent} />
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
