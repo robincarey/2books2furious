@@ -144,13 +144,94 @@ async function searchGoogleBooks(query: string, limit: number): Promise<BookSear
   });
 }
 
+const OL_UA = { "User-Agent": "2Books2Furious/1.0 (book club app)" };
+
+function looksLikeIsbn(s: string): string | null {
+  const cleaned = s.replace(/[-\s]/g, "");
+  if (/^\d{13}$/.test(cleaned) || /^\d{9}[\dXx]$/.test(cleaned)) return cleaned.toUpperCase();
+  return null;
+}
+
+/** Resolve a single edition from Open Library's ISBN lookup. */
+async function searchByIsbn(isbn: string): Promise<BookSearchResult[]> {
+  const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`, { headers: OL_UA });
+  if (!res.ok) return [];
+  const ed = (await res.json()) as {
+    title?: string;
+    authors?: { key: string }[];
+    number_of_pages?: number;
+    covers?: number[];
+    works?: { key: string }[];
+  };
+
+  // Author names (resolve a couple of author keys).
+  const authors: string[] = [];
+  for (const a of (ed.authors ?? []).slice(0, 3)) {
+    try {
+      const ar = await fetch(`https://openlibrary.org${a.key}.json`, { headers: OL_UA });
+      if (ar.ok) {
+        const name = (await ar.json())?.name;
+        if (name) authors.push(name);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Genres from the work's subjects.
+  let genres: string[] = [];
+  const workKey = ed.works?.[0]?.key;
+  if (workKey) {
+    try {
+      const wr = await fetch(`https://openlibrary.org${workKey}.json`, { headers: OL_UA });
+      if (wr.ok) genres = cleanGenres((await wr.json())?.subjects);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const cover = ed.covers?.find((c) => c > 0)
+    ? `https://covers.openlibrary.org/b/id/${ed.covers!.find((c) => c > 0)}-L.jpg`
+    : `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+
+  return [
+    {
+      title: ed.title ?? "Untitled",
+      author: authors.join(", ") || null,
+      page_count: ed.number_of_pages ?? null,
+      genres,
+      cover_url: cover,
+      description: null,
+      isbn,
+    },
+  ];
+}
+
 /**
- * Search for books to autofill a backlog entry. Open Library is primary (no
- * quota); Google Books is a best-effort fallback only when OL returns nothing.
+ * Search for books to autofill a backlog entry. If the query is an ISBN, resolve
+ * that exact edition. Otherwise Open Library is primary (no quota), with Google
+ * Books as a best-effort fallback only when OL returns nothing.
  */
 export async function searchBooks(query: string, limit = 8): Promise<BookSearchResult[]> {
   const q = query.trim();
   if (!q) return [];
+
+  const isbn = looksLikeIsbn(q);
+  if (isbn) {
+    try {
+      const byIsbn = await searchByIsbn(isbn);
+      if (byIsbn.length > 0) return byIsbn;
+    } catch {
+      /* fall through to text search */
+    }
+    // Fall back to OL text search using the isbn: qualifier.
+    try {
+      const viaSearch = await searchOpenLibrary(`isbn:${isbn}`, limit);
+      if (viaSearch.length > 0) return viaSearch;
+    } catch {
+      /* ignore */
+    }
+  }
 
   try {
     const ol = await searchOpenLibrary(q, limit);
