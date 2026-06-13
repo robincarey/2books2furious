@@ -45,11 +45,11 @@ export function AddBookForm({ disabled }: { disabled?: boolean }) {
   return (
     <div className="space-y-4">
       <div>
-        <label className="mb-1.5 block text-sm font-medium">Search Google Books</label>
+        <label className="mb-1.5 block text-sm font-medium">Search by title, author, or ISBN</label>
         <div className="flex gap-2">
           <input
             className={inputClass}
-            placeholder="Title or author…"
+            placeholder="Title, author, or ISBN…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
