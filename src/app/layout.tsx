@@ -24,7 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Header />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
           <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
-            2 Books 2 Furious — read fast, rate hard.
+            2 Books 2 Furious
           </footer>
         </ThemeProvider>
       </body>

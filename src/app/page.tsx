@@ -48,10 +48,7 @@ export default async function Home() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title={me ? `Welcome back, ${me.name.split(" ")[0]}` : "2 Books 2 Furious"}
-        subtitle="Sci-fi, fantasy, and the occasional thriller. Read fast, rate hard."
-      />
+      <PageHeader title={me ? `Welcome back, ${me.name.split(" ")[0]}` : "2 Books 2 Furious"} />
 
       {!me && (
         <MemberPicker members={members} redirectTo="/" />
