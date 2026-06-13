@@ -1,5 +1,6 @@
 export type BookStatus = "suggested" | "scheduled" | "read";
 export type RsvpStatus = "going" | "maybe" | "out";
+export type FeatureStatus = "open" | "planned" | "done" | "declined";
 
 export interface Member {
   id: string;
@@ -79,6 +80,21 @@ export interface BookWithExtras extends Book {
   voted_by_me: boolean;
   avg_rating: number | null;
   review_count: number;
+}
+
+export interface FeatureRequest {
+  id: string;
+  title: string;
+  body: string | null;
+  submitted_by: string | null;
+  status: FeatureStatus;
+  created_at: string;
+}
+
+export interface FeatureRequestWithExtras extends FeatureRequest {
+  submitter: Member | null;
+  votes: number;
+  voted_by_me: boolean;
 }
 
 export interface BookSearchResult {

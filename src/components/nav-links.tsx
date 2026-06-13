@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/rotation", label: "Rotation" },
   { href: "/analytics", label: "Analytics" },
   { href: "/recommendations", label: "Recs" },
+  { href: "/suggestions", label: "Suggestions" },
   { href: "/wrapped", label: "Wrapped" },
 ];
 

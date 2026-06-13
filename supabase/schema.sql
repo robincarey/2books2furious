@@ -112,8 +112,30 @@ create table if not exists rsvps (
   unique (meeting_id, member_id)
 );
 
+-- ---------------------------------------------------------------------------
+-- Feature requests ("suggest a feature") + upvotes
+-- ---------------------------------------------------------------------------
+create table if not exists feature_requests (
+  id           uuid primary key default gen_random_uuid(),
+  title        text not null,
+  body         text,
+  submitted_by uuid references members(id) on delete set null,
+  status       text not null default 'open'
+                 check (status in ('open','planned','done','declined')),
+  created_at   timestamptz not null default now()
+);
+
+create table if not exists feature_request_votes (
+  id         uuid primary key default gen_random_uuid(),
+  request_id uuid not null references feature_requests(id) on delete cascade,
+  member_id  uuid not null references members(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (request_id, member_id)
+);
+
 -- Helpful indexes
 create index if not exists idx_reviews_book on reviews(book_id);
+create index if not exists idx_feature_votes_request on feature_request_votes(request_id);
 create index if not exists idx_comments_meeting on comments(meeting_id);
 create index if not exists idx_comments_book on comments(book_id);
 create index if not exists idx_meetings_date on meetings(meeting_date);
@@ -131,6 +153,8 @@ alter table reviews          enable row level security;
 alter table comments         enable row level security;
 alter table reading_progress enable row level security;
 alter table rsvps            enable row level security;
+alter table feature_requests      enable row level security;
+alter table feature_request_votes enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Seed the 5 members (idempotent on name)

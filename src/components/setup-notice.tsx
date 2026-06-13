@@ -8,8 +8,8 @@ export function SetupNotice({ reason }: { reason: "env" | "schema" }) {
         <div className="mt-2 space-y-2 text-sm text-muted-foreground">
           <p>Supabase isn&apos;t configured yet. Add these to <code className="rounded bg-muted px-1">.env.local</code> (and your Vercel project):</p>
           <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-{`SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_SECRET_KEY=sb_secret_...`}
+{`B2F_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+B2F_SUPABASE_SECRET_KEY=sb_secret_...`}
           </pre>
         </div>
       ) : (

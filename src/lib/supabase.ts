@@ -9,15 +9,26 @@ let cached: SupabaseClient | null = null;
  * Supabase credential; all reads/writes flow through Server Components and
  * Server Actions.
  */
+/**
+ * Resolve config from app-specific names first (B2F_*), falling back to the
+ * generic SUPABASE_* names. The B2F_ prefix avoids collisions with any global
+ * SUPABASE_URL / SUPABASE_KEY a developer may export in their shell, which Next
+ * would otherwise let shadow .env.local during `next dev`.
+ */
+function resolveConfig() {
+  const url = process.env.B2F_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const key = process.env.B2F_SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY;
+  return { url, key };
+}
+
 export function getSupabase(): SupabaseClient {
   if (cached) return cached;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
+  const { url, key } = resolveConfig();
 
   if (!url || !key) {
     throw new Error(
-      "Missing SUPABASE_URL or SUPABASE_SECRET_KEY. Set them in .env.local (local) and in the Vercel project settings (production).",
+      "Missing Supabase config. Set B2F_SUPABASE_URL and B2F_SUPABASE_SECRET_KEY (or SUPABASE_URL / SUPABASE_SECRET_KEY) in .env.local (local) and in the Vercel project settings (production).",
     );
   }
 
@@ -29,5 +40,6 @@ export function getSupabase(): SupabaseClient {
 
 /** True when Supabase env vars are configured (used for friendly setup screens). */
 export function isSupabaseConfigured(): boolean {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY);
+  const { url, key } = resolveConfig();
+  return Boolean(url && key);
 }

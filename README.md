@@ -37,16 +37,26 @@ npm install
 Create `.env.local` (already created locally; recreate on a new machine):
 
 ```bash
-SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_SECRET_KEY=sb_secret_...
+B2F_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+B2F_SUPABASE_SECRET_KEY=sb_secret_...
 # Optional integrations:
 # DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 # OPENAI_API_KEY=sk-...
 # OPENAI_MODEL=gpt-4o-mini
 ```
 
-The secret key bypasses RLS and must stay server-side. Never expose it to the client and never
-commit `.env.local` (it is gitignored).
+The app-specific `B2F_` prefix is used so a global `SUPABASE_URL` / `SUPABASE_KEY` exported in
+your shell can't shadow `.env.local` during `next dev`. The generic `SUPABASE_URL` /
+`SUPABASE_SECRET_KEY` names also work as a fallback (handy on Vercel). The secret key bypasses
+RLS and must stay server-side — never expose it to the client, and never commit `.env.local`
+(it is gitignored).
+
+### Database scripts (optional helpers)
+
+- `node scripts/apply-schema.mjs` — applies `supabase/schema.sql` to the live DB via the pooler
+  (needs `DUDE_DB_PASS` in your shell). Useful instead of pasting SQL into the dashboard.
+- `node scripts/seed-books.mjs` — seeds the club's reading history (idempotent).
+- `node scripts/enrich-books.mjs` — backfills covers/pages/genres from Open Library.
 
 ### 3. Create the database schema (one time)
 

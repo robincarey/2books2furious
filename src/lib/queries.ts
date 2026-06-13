@@ -4,6 +4,7 @@ import type {
   Book,
   BookWithExtras,
   Comment,
+  FeatureRequestWithExtras,
   Meeting,
   Member,
   ReadingProgress,
@@ -307,6 +308,55 @@ export async function getMemberLeaderboard(): Promise<MemberStatRow[]> {
 }
 
 /** Whose turn is it to pick next? Based on selection_order and past picks. */
+const FEATURE_STATUS_ORDER: Record<string, number> = {
+  open: 0,
+  planned: 1,
+  done: 2,
+  declined: 3,
+};
+
+export async function getFeatureRequests(
+  currentMemberId: string | null,
+): Promise<FeatureRequestWithExtras[]> {
+  const supabase = getSupabase();
+  const [{ data: requests }, members] = await Promise.all([
+    supabase.from("feature_requests").select("*").order("created_at", { ascending: false }),
+    membersById(),
+  ]);
+  const list = (requests as FeatureRequestWithExtras[]) ?? [];
+  if (list.length === 0) return [];
+
+  const ids = list.map((r) => r.id);
+  const { data: votes } = await supabase
+    .from("feature_request_votes")
+    .select("request_id, member_id")
+    .in("request_id", ids);
+
+  const voteMap = new Map<string, { count: number; mine: boolean }>();
+  for (const v of (votes as { request_id: string; member_id: string }[]) ?? []) {
+    const entry = voteMap.get(v.request_id) ?? { count: 0, mine: false };
+    entry.count += 1;
+    if (currentMemberId && v.member_id === currentMemberId) entry.mine = true;
+    voteMap.set(v.request_id, entry);
+  }
+
+  return list
+    .map((r) => {
+      const v = voteMap.get(r.id) ?? { count: 0, mine: false };
+      return {
+        ...r,
+        submitter: r.submitted_by ? members.get(r.submitted_by) ?? null : null,
+        votes: v.count,
+        voted_by_me: v.mine,
+      } satisfies FeatureRequestWithExtras;
+    })
+    .sort((a, b) => {
+      const s = (FEATURE_STATUS_ORDER[a.status] ?? 9) - (FEATURE_STATUS_ORDER[b.status] ?? 9);
+      if (s !== 0) return s;
+      return b.votes - a.votes;
+    });
+}
+
 export async function getRotation(): Promise<{
   members: Member[];
   pickCounts: Map<string, number>;

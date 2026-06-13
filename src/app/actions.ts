@@ -245,6 +245,54 @@ export async function addComment(formData: FormData) {
 }
 
 // --------------------------------------------------------------------------
+// Feature requests ("suggest a feature")
+// --------------------------------------------------------------------------
+export async function addFeatureRequest(formData: FormData) {
+  const memberId = await requireMember();
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) throw new Error("A title is required.");
+  const body = String(formData.get("body") ?? "").trim() || null;
+
+  const supabase = getSupabase();
+  const { data: req } = await supabase
+    .from("feature_requests")
+    .insert({ title, body, submitted_by: memberId, status: "open" })
+    .select("id")
+    .single();
+
+  // Auto-upvote your own request.
+  if (req?.id) {
+    await supabase
+      .from("feature_request_votes")
+      .insert({ request_id: req.id, member_id: memberId });
+  }
+
+  await notifyDiscord(`💡 ${await memberName(memberId)} suggested a feature: **${title}**`);
+  revalidatePath("/suggestions");
+}
+
+export async function toggleFeatureVote(formData: FormData) {
+  const memberId = await requireMember();
+  const requestId = String(formData.get("request_id") ?? "");
+  if (!requestId) return;
+  const supabase = getSupabase();
+  const { data: existing } = await supabase
+    .from("feature_request_votes")
+    .select("id")
+    .eq("request_id", requestId)
+    .eq("member_id", memberId)
+    .maybeSingle();
+  if (existing) {
+    await supabase.from("feature_request_votes").delete().eq("id", existing.id);
+  } else {
+    await supabase
+      .from("feature_request_votes")
+      .insert({ request_id: requestId, member_id: memberId });
+  }
+  revalidatePath("/suggestions");
+}
+
+// --------------------------------------------------------------------------
 // Reading progress (drives dashboard + spoiler gating)
 // --------------------------------------------------------------------------
 export async function setProgress(formData: FormData) {
