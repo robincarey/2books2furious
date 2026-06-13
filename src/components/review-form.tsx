@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { upsertReview } from "@/app/actions";
-import { StarInput } from "./star-rating";
+import { StarInput, StarsDisplay } from "./star-rating";
 import { btn, inputClass } from "@/lib/utils";
 import type { Review } from "@/lib/types";
 
@@ -17,6 +18,9 @@ export function ReviewForm({
   /** Single source of truth: rating + text only unlock once completed. */
   completed: boolean;
 }) {
+  const hasReview = Boolean(existing?.rating || existing?.body);
+  const [expanded, setExpanded] = useState(!hasReview);
+
   if (disabled) {
     return <p className="text-sm text-warning">Pick who you are first.</p>;
   }
@@ -50,8 +54,39 @@ export function ReviewForm({
     );
   }
 
+  // Completed but collapsed: show a summary with an edit affordance.
+  if (!expanded) {
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 text-sm">
+          {existing?.rating ? (
+            <StarsDisplay value={existing.rating} size={16} />
+          ) : (
+            <span className="text-muted-foreground">No rating yet</span>
+          )}
+          {existing?.body && (
+            <span className="truncate text-muted-foreground">— {existing.body}</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="shrink-0 text-sm text-primary hover:underline"
+        >
+          Edit review
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <form action={upsertReview} className="space-y-4">
+    <form
+      action={async (fd) => {
+        await upsertReview(fd);
+        setExpanded(false);
+      }}
+      className="space-y-4"
+    >
       <input type="hidden" name="book_id" value={bookId} />
       <div>
         <label className="mb-1.5 block text-sm font-medium">Rating</label>
@@ -71,9 +106,20 @@ export function ReviewForm({
         />
       </div>
 
-      <button type="submit" className={btn("primary")}>
-        {existing ? "Update review" : "Save review"}
-      </button>
+      <div className="flex items-center gap-3">
+        <button type="submit" className={btn("primary")}>
+          {hasReview ? "Update review" : "Save review"}
+        </button>
+        {hasReview && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className={btn("ghost", "sm")}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 }

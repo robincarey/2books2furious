@@ -32,9 +32,10 @@ async function search(q, pp) {
 }
 
 async function generate(scope) {
-  const [{ data: books }, { data: reviews }] = await Promise.all([
+  const [{ data: books }, { data: reviews }, { data: dismissed }] = await Promise.all([
     supabase.from("books").select("id,title,author,status"),
     supabase.from("reviews").select("book_id,member_id,rating"),
+    supabase.from("dismissed_recommendations").select("title"),
   ]);
   const relevant = scope === "group" ? reviews : reviews.filter((r) => r.member_id === scope);
   const avg = new Map();
@@ -67,6 +68,7 @@ async function generate(scope) {
   const topGenres = [...genreWeight.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k]) => ({ key: k, label: genreLabel.get(k) }));
   const avoid = new Set(books.map((b) => norm(b.title)));
   for (const s of seeds) avoid.add(norm(s.title));
+  for (const d of dismissed ?? []) avoid.add(norm(d.title));
 
   const candidates = new Map();
   const consider = (doc) => {
@@ -103,6 +105,7 @@ async function generate(scope) {
       why: c.byAuthor
         ? `More from ${c.byAuthor}, an author the club rates highly; ${ratingStr}.`
         : `Matches your taste for ${c.overlap.slice(0, 2).join(" & ")}; ${ratingStr}.`,
+      hardcoverId: c.doc.id != null ? String(c.doc.id) : null,
     });
     if (out.length >= 5) break;
   }
