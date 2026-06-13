@@ -126,6 +126,18 @@ async function searchDoc(title, author) {
     const doc = pickBestDoc(title, author, (await res.json()).docs ?? []);
     if (doc && scoreDoc(title, author, doc) >= 60) return doc;
   }
+  // OL may index only the original-language title (e.g. Harpman's French title).
+  if (author) {
+    const u = new URL("https://openlibrary.org/search.json");
+    u.searchParams.set("q", `${title} ${author}`.trim());
+    u.searchParams.set("limit", "8");
+    u.searchParams.set("fields", fields);
+    const res = await fetch(u, { headers: UA });
+    if (res.ok) {
+      const doc = pickBestDoc(title, author, (await res.json()).docs ?? []);
+      if (doc?.key && authorMatches(author, doc.author_name)) return doc;
+    }
+  }
   return null;
 }
 
@@ -170,7 +182,9 @@ const OVERRIDES = {
   "Shards of Earth": { genres: ["Science Fiction"] },
   "I Who Have Never Known Men": {
     genres: ["Science Fiction", "Literary Fiction"],
-    cover_url: "https://covers.openlibrary.org/b/isbn/9781784875459-L.jpg",
+    // ISBN 9781784875459 resolves to a 1x1 placeholder; use print edition cover id.
+    cover_url: "https://covers.openlibrary.org/b/id/14840892-L.jpg",
+    isbn: "9781529954463",
   },
   "Between Two Fires": {
     cover_url: "https://covers.openlibrary.org/b/isbn/9798662731349-L.jpg",
