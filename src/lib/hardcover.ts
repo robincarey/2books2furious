@@ -4,6 +4,7 @@ export interface Recommendation {
   title: string;
   author: string;
   why: string;
+  hardcoverId: string | null;
 }
 
 export function isHardcoverConfigured(): boolean {
@@ -19,6 +20,7 @@ function authHeader(): string {
 const ENDPOINT = "https://api.hardcover.app/v1/graphql";
 
 interface HcDoc {
+  id?: number | string;
   title?: string;
   author_names?: string[];
   genres?: string[];
@@ -185,6 +187,7 @@ export async function getRecommendations(opts: {
       title: c.doc.title ?? "Untitled",
       author: c.doc.author_names?.join(", ") ?? "",
       why,
+      hardcoverId: c.doc.id != null ? String(c.doc.id) : null,
     };
   });
 }

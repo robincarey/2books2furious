@@ -282,6 +282,27 @@ export async function toggleMemberRead(formData: FormData) {
       .update({ finished: true, dnf: false })
       .eq("book_id", bookId)
       .eq("member_id", memberId);
+    // Completing a book implies 100% progress — keep them in sync.
+    const { data: prog } = await supabase
+      .from("reading_progress")
+      .select("unit, total")
+      .eq("book_id", bookId)
+      .eq("member_id", memberId)
+      .maybeSingle();
+    const unit = prog?.unit ?? "percent";
+    const total = prog?.total ?? null;
+    await supabase.from("reading_progress").upsert(
+      {
+        member_id: memberId,
+        book_id: bookId,
+        percent: 100,
+        unit,
+        position: total ?? 100,
+        total: total ?? (unit === "percent" ? 100 : null),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "member_id,book_id" },
+    );
   }
   revalidatePath("/previous");
   revalidatePath("/");
@@ -394,12 +415,14 @@ export async function refreshRecommendations(formData: FormData) {
   if (!isHardcoverConfigured()) return;
 
   const supabase = getSupabase();
-  const [{ data: books }, { data: reviews }] = await Promise.all([
+  const [{ data: books }, { data: reviews }, { data: dismissed }] = await Promise.all([
     supabase.from("books").select("*"),
     supabase.from("reviews").select("*"),
+    supabase.from("dismissed_recommendations").select("title"),
   ]);
   const bookList = (books as { id: string; title: string; author: string | null; status: string }[]) ?? [];
   const reviewList = (reviews as { book_id: string; member_id: string; rating: number | null }[]) ?? [];
+  const dismissedTitles = ((dismissed as { title: string }[]) ?? []).map((d) => d.title);
 
   const relevant =
     scope && scope !== "group" ? reviewList.filter((r) => r.member_id === scope) : reviewList;
@@ -420,7 +443,7 @@ export async function refreshRecommendations(formData: FormData) {
 
   const recommendations = await getRecommendations({
     history,
-    avoidTitles: bookList.map((b) => b.title),
+    avoidTitles: [...bookList.map((b) => b.title), ...dismissedTitles],
     limit: 5,
   });
 
@@ -431,5 +454,49 @@ export async function refreshRecommendations(formData: FormData) {
       { onConflict: "scope" },
     );
 
+  revalidatePath("/recommendations");
+}
+
+const normTitle = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+export async function dismissRecommendation(formData: FormData) {
+  const memberId = await requireMember();
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return;
+  const hardcoverId = String(formData.get("hardcover_id") ?? "") || null;
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+  const supabase = getSupabase();
+
+  await supabase
+    .from("dismissed_recommendations")
+    .upsert(
+      { title, hardcover_id: hardcoverId, reason, dismissed_by: memberId },
+      { onConflict: "title" },
+    );
+
+  // Remove the dismissed title from every cached list immediately (no API call).
+  const { data: rows } = await supabase
+    .from("recommendations_cache")
+    .select("scope, recommendations, generated_at");
+  for (const row of (rows as { scope: string; recommendations: { title: string }[]; generated_at: string }[]) ?? []) {
+    const filtered = (row.recommendations ?? []).filter(
+      (r) => normTitle(r.title) !== normTitle(title),
+    );
+    if (filtered.length !== (row.recommendations ?? []).length) {
+      await supabase
+        .from("recommendations_cache")
+        .update({ recommendations: filtered })
+        .eq("scope", row.scope);
+    }
+  }
+
+  revalidatePath("/recommendations");
+}
+
+export async function undismissRecommendation(formData: FormData) {
+  await requireMember();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  await getSupabase().from("dismissed_recommendations").delete().eq("id", id);
   revalidatePath("/recommendations");
 }

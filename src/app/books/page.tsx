@@ -13,8 +13,14 @@ interface SearchParams {
   rating?: string;
   minPages?: string;
   maxPages?: string;
-  status?: string;
+  status?: "suggested" | "scheduled" | "read";
 }
+
+const STATUS_LABEL: Record<string, string> = {
+  read: "Read",
+  scheduled: "Scheduled",
+  suggested: "In the backlog",
+};
 
 export default async function BooksListPage({
   searchParams,
@@ -30,10 +36,15 @@ export default async function BooksListPage({
   const rating = sp.rating != null && sp.rating !== "" ? Number(sp.rating) : null;
   const minPages = sp.minPages != null && sp.minPages !== "" ? Number(sp.minPages) : null;
   const maxPages = sp.maxPages != null && sp.maxPages !== "" ? Number(sp.maxPages) : null;
+  const status = sp.status && STATUS_LABEL[sp.status] ? sp.status : null;
 
   let books = await getBooksWithExtras(null);
 
   const filters: string[] = [];
+  if (status) {
+    books = books.filter((b) => b.status === status);
+    filters.push(STATUS_LABEL[status]);
+  }
   if (genre) {
     const g = genre.toLowerCase();
     books = books.filter((b) => b.genres.some((x) => x.toLowerCase() === g));

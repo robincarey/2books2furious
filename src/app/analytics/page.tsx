@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { GenrePie, LengthBands, PagesLine, RatingsBar } from "@/components/analytics-charts";
 import { SetupNotice } from "@/components/setup-notice";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -81,8 +82,8 @@ export default async function AnalyticsPage() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-4">
-            <Stat label="Books read" value={readBooks.length} />
-            <Stat label="Total pages" value={totalPages.toLocaleString()} />
+            <Stat label="Books read" value={readBooks.length} href="/books?status=read" />
+            <Stat label="Total pages" value={totalPages.toLocaleString()} href="/books?status=read" />
             <Stat label="Avg book length" value={`${avgPages}p`} />
             <Stat label="Finish rate" value={`${finishRate}%`} />
           </div>
@@ -121,11 +122,13 @@ export default async function AnalyticsPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Card className="p-5">
+function Stat({ label, value, href }: { label: string; value: string | number; href?: string }) {
+  const inner = (
+    <Card className="p-5 transition hover:border-primary/50">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value}</p>
+      {href && <p className="mt-1 text-xs text-primary">View books →</p>}
     </Card>
   );
+  return href ? <Link href={href}>{inner}</Link> : inner;
 }

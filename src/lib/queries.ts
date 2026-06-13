@@ -114,6 +114,27 @@ export async function getRecommendationCache(): Promise<Record<string, CachedRec
   return out;
 }
 
+export interface DismissedRecommendation {
+  id: string;
+  title: string;
+  hardcover_id: string | null;
+  reason: string | null;
+  created_at: string;
+  dismissed_by_member: Member | null;
+}
+
+export async function getDismissedRecommendations(): Promise<DismissedRecommendation[]> {
+  const supabase = getSupabase();
+  const [{ data }, members] = await Promise.all([
+    supabase.from("dismissed_recommendations").select("*").order("created_at", { ascending: false }),
+    membersById(),
+  ]);
+  return ((data as (DismissedRecommendation & { dismissed_by: string | null })[]) ?? []).map((d) => ({
+    ...d,
+    dismissed_by_member: d.dismissed_by ? members.get(d.dismissed_by) ?? null : null,
+  }));
+}
+
 export async function getReadsForBook(bookId: string): Promise<string[]> {
   const supabase = getSupabase();
   const { data } = await supabase

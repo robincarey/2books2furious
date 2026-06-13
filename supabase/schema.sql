@@ -156,6 +156,18 @@ create table if not exists recommendations_cache (
   generated_at    timestamptz not null default now()
 );
 
+-- Recommendations the club has explicitly dismissed (with a reason). The
+-- recommender excludes these titles when ranking/refreshing the Top 5.
+create table if not exists dismissed_recommendations (
+  id           uuid primary key default gen_random_uuid(),
+  title        text not null,
+  hardcover_id text,
+  reason       text,
+  dismissed_by uuid references members(id) on delete set null,
+  created_at   timestamptz not null default now(),
+  unique (title)
+);
+
 -- ---------------------------------------------------------------------------
 -- Idempotent migrations for columns added after the initial schema.
 -- ---------------------------------------------------------------------------
@@ -198,6 +210,7 @@ alter table feature_requests      enable row level security;
 alter table feature_request_votes enable row level security;
 alter table member_book_reads     enable row level security;
 alter table recommendations_cache enable row level security;
+alter table dismissed_recommendations enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Seed the 5 members (idempotent on name)

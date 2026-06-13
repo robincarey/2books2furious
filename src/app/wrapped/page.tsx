@@ -5,97 +5,76 @@ import { StarsDisplay } from "@/components/star-rating";
 import { SetupNotice } from "@/components/setup-notice";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { getAllReviews, getBooksWithExtras, getMeetings, membersById } from "@/lib/queries";
+import { getAllMemberReads, getAllReviews, getBooksWithExtras, membersById } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function WrappedPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ year?: string }>;
-}) {
+export default async function WrappedPage() {
   if (!isSupabaseConfigured()) return <SetupNotice reason="env" />;
   const memberMap = await membersById();
   if (memberMap.size === 0) return <SetupNotice reason="schema" />;
 
-  const { year: yearParam } = await searchParams;
-  const year = Number(yearParam) || new Date().getFullYear();
-
-  const [books, reviews, meetings] = await Promise.all([
+  const [books, reviews, reads] = await Promise.all([
     getBooksWithExtras(null),
     getAllReviews(),
-    getMeetings(),
+    getAllMemberReads(),
   ]);
 
-  const bookMap = new Map(books.map((b) => [b.id, b]));
-  const meetingsThisYear = meetings.filter(
-    (m) => new Date(m.meeting_date).getFullYear() === year,
-  );
-  const bookIdsThisYear = new Set(
-    meetingsThisYear.map((m) => m.book_id).filter(Boolean) as string[],
-  );
-  const booksThisYear = [...bookIdsThisYear].map((id) => bookMap.get(id)).filter(Boolean);
-  const reviewsThisYear = reviews.filter((r) => bookIdsThisYear.has(r.book_id));
+  // The whole club-read library, not just books tied to a dated meeting.
+  const readBooks = books.filter((b) => b.status === "read");
+  const readIds = new Set(readBooks.map((b) => b.id));
+  const libraryReviews = reviews.filter((r) => readIds.has(r.book_id));
 
-  const totalPages = booksThisYear.reduce((s, b) => s + (b?.page_count ?? 0), 0);
+  const totalPages = readBooks.reduce((s, b) => s + (b.page_count ?? 0), 0);
 
   const genreCounts = new Map<string, number>();
-  for (const b of booksThisYear) {
-    for (const g of b?.genres ?? []) genreCounts.set(g, (genreCounts.get(g) ?? 0) + 1);
+  for (const b of readBooks) {
+    for (const g of b.genres) genreCounts.set(g, (genreCounts.get(g) ?? 0) + 1);
   }
-  const topGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
-  const ranked = booksThisYear
-    .map((b) => ({ book: b!, avg: b!.avg_rating ?? 0, n: b!.review_count }))
+  const ranked = readBooks
+    .map((b) => ({ book: b, avg: b.avg_rating ?? 0, n: b.review_count }))
     .filter((x) => x.n > 0)
     .sort((a, b) => b.avg - a.avg);
   const favorite = ranked[0];
   const mostDivisive = ranked.length > 1 ? ranked[ranked.length - 1] : null;
 
   const reviewsByMember = new Map<string, number>();
-  for (const r of reviewsThisYear) {
+  for (const r of libraryReviews) {
     reviewsByMember.set(r.member_id, (reviewsByMember.get(r.member_id) ?? 0) + 1);
   }
   const topReviewerId = [...reviewsByMember.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   const topReviewer = topReviewerId ? memberMap.get(topReviewerId) : null;
 
-  const availableYears = [
-    ...new Set(meetings.map((m) => new Date(m.meeting_date).getFullYear())),
-  ].sort((a, b) => b - a);
+  // Per-member completed reads (member_book_reads).
+  const completionsByMember = new Map<string, number>();
+  for (const r of reads) {
+    if (!readIds.has(r.book_id)) continue;
+    completionsByMember.set(r.member_id, (completionsByMember.get(r.member_id) ?? 0) + 1);
+  }
+  const topReaderEntry = [...completionsByMember.entries()].sort((a, b) => b[1] - a[1])[0];
+  const topReader = topReaderEntry ? memberMap.get(topReaderEntry[0]) : null;
+
+  const avgLen = readBooks.filter((b) => b.page_count).length
+    ? Math.round(totalPages / readBooks.filter((b) => b.page_count).length)
+    : 0;
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title={`${year} Wrapped`}
-        subtitle="The club's year in books."
-        action={
-          <div className="flex gap-1">
-            {availableYears.map((y) => (
-              <Link
-                key={y}
-                href={`/wrapped?year=${y}`}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  y === year ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {y}
-              </Link>
-            ))}
-          </div>
-        }
-      />
+      <PageHeader title="Wrapped" subtitle="The club's year in books — the whole library so far." />
 
-      {booksThisYear.length === 0 ? (
+      {readBooks.length === 0 ? (
         <EmptyState
-          title={`Nothing logged for ${year}`}
-          description="Schedule meetings with books to build a wrap-up."
+          title="Nothing read yet"
+          description="Mark books as read to build a wrap-up."
         />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <BigStat label="Books read" value={booksThisYear.length} />
+            <BigStat label="Books read" value={readBooks.length} href="/previous" />
             <BigStat label="Pages devoured" value={totalPages.toLocaleString()} />
-            <BigStat label="Reviews written" value={reviewsThisYear.length} />
+            <BigStat label="Reviews written" value={libraryReviews.length} />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
@@ -124,6 +103,15 @@ export default async function WrappedPage({
             <Card className="p-6">
               <p className="text-sm text-muted-foreground">Highlights</p>
               <ul className="mt-3 space-y-3 text-sm">
+                {topReader && (
+                  <li className="flex items-center gap-2">
+                    <Avatar name={topReader.name} color={topReader.color} size={26} />
+                    <span>
+                      <strong>{topReader.name.split(" ")[0]}</strong> completed the most books (
+                      {topReaderEntry?.[1]})
+                    </span>
+                  </li>
+                )}
                 {topReviewer && (
                   <li className="flex items-center gap-2">
                     <Avatar name={topReviewer.name} color={topReviewer.color} size={26} />
@@ -145,15 +133,7 @@ export default async function WrappedPage({
                   </li>
                 )}
                 <li>
-                  Average book length:{" "}
-                  <strong>
-                    {booksThisYear.filter((b) => b?.page_count).length
-                      ? Math.round(
-                          totalPages / booksThisYear.filter((b) => b?.page_count).length,
-                        )
-                      : 0}
-                    p
-                  </strong>
+                  Average book length: <strong>{avgLen}p</strong>
                 </li>
               </ul>
             </Card>
@@ -161,12 +141,14 @@ export default async function WrappedPage({
 
           {topGenres.length > 0 && (
             <Card className="p-6">
-              <p className="mb-3 text-sm text-muted-foreground">Top genres of {year}</p>
+              <p className="mb-3 text-sm text-muted-foreground">Top genres</p>
               <div className="flex flex-wrap gap-2">
                 {topGenres.map(([g, n]) => (
-                  <Badge key={g} tone="secondary">
-                    {g} · {n}
-                  </Badge>
+                  <Link key={g} href={`/books?genre=${encodeURIComponent(g)}`}>
+                    <Badge tone="secondary">
+                      {g} · {n}
+                    </Badge>
+                  </Link>
                 ))}
               </div>
             </Card>
@@ -177,11 +159,12 @@ export default async function WrappedPage({
   );
 }
 
-function BigStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Card className="p-6 text-center">
+function BigStat({ label, value, href }: { label: string; value: string | number; href?: string }) {
+  const inner = (
+    <Card className="p-6 text-center transition hover:border-primary/50">
       <p className="text-4xl font-black text-primary">{value}</p>
       <p className="mt-1 text-sm text-muted-foreground">{label}</p>
     </Card>
   );
+  return href ? <Link href={href}>{inner}</Link> : inner;
 }
