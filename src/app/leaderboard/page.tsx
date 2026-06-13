@@ -77,8 +77,7 @@ export default async function LeaderboardPage() {
                     <th className="px-3 py-3 text-center font-medium">Reviews</th>
                     <th className="px-3 py-3 text-center font-medium">Finished</th>
                     <th className="px-3 py-3 text-center font-medium">Avg given</th>
-                    <th className="px-3 py-3 text-center font-medium">Picks</th>
-                    <th className="px-5 py-3 text-center font-medium">Pick avg</th>
+                    <th className="px-5 py-3 text-center font-medium">Picks</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -95,10 +94,7 @@ export default async function LeaderboardPage() {
                       <td className="px-3 py-3 text-center tabular-nums">
                         {m.avg_given != null ? `${m.avg_given.toFixed(2)}★` : "—"}
                       </td>
-                      <td className="px-3 py-3 text-center tabular-nums">{m.picks}</td>
-                      <td className="px-5 py-3 text-center tabular-nums">
-                        {m.avg_pick_rating != null ? `${m.avg_pick_rating.toFixed(2)}★` : "—"}
-                      </td>
+                      <td className="px-5 py-3 text-center tabular-nums">{m.picks}</td>
                     </tr>
                   ))}
                 </tbody>

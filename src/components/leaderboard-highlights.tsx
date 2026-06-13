@@ -13,17 +13,6 @@ type Highlight = {
 function buildHighlights(stats: MemberStatRow[]): Highlight[] {
   const highlights: Highlight[] = [];
 
-  const bestPicker = [...stats]
-    .filter((m) => m.avg_pick_rating != null)
-    .sort((a, b) => (b.avg_pick_rating ?? 0) - (a.avg_pick_rating ?? 0))[0];
-  if (bestPicker) {
-    highlights.push({
-      label: "Best picker",
-      member: bestPicker.member,
-      detail: `picks avg ${bestPicker.avg_pick_rating?.toFixed(2)}★`,
-    });
-  }
-
   const mostGenerous = [...stats]
     .filter((m) => m.avg_given != null)
     .sort((a, b) => (b.avg_given ?? 0) - (a.avg_given ?? 0))[0];
