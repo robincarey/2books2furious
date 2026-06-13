@@ -35,14 +35,14 @@ export function RecommendationsPanel({
       });
       const data = await res.json();
       if (data.error === "not_configured") {
-        setError("AI isn't configured. Add OPENAI_API_KEY to enable recommendations.");
+        setError("Recommendations aren't configured. Add HARDCOVER_API_KEY to enable them.");
       } else if (!data.recommendations?.length) {
-        setError("No recommendations came back. Try again once there are some reviews.");
+        setError("No recommendations came back. Try again once there are some reads/ratings.");
       } else {
         setRecs(data.recommendations);
       }
     } catch {
-      setError("Something went wrong reaching the AI service.");
+      setError("Something went wrong reaching Hardcover.");
     } finally {
       setLoading(false);
     }
@@ -52,10 +52,10 @@ export function RecommendationsPanel({
     return (
       <Card className="p-6">
         <p className="text-sm text-muted-foreground">
-          AI recommendations are optional. To turn them on, set an{" "}
-          <code className="rounded bg-muted px-1">OPENAI_API_KEY</code> environment variable
-          (locally in <code className="rounded bg-muted px-1">.env.local</code> and in Vercel). The
-          model reads the club&apos;s ratings and suggests what to read next.
+          Recommendations are optional. To turn them on, set a{" "}
+          <code className="rounded bg-muted px-1">HARDCOVER_API_KEY</code> environment variable
+          (locally in <code className="rounded bg-muted px-1">.env.local</code> and in Vercel). We
+          match the club&apos;s top-rated reads to similar books on Hardcover.
         </p>
       </Card>
     );
@@ -78,7 +78,7 @@ export function RecommendationsPanel({
           </select>
         </div>
         <button onClick={generate} disabled={loading} className={btn("primary")}>
-          {loading ? "Thinking…" : "Get recommendations"}
+          {loading ? "Finding matches…" : "Get recommendations"}
         </button>
       </Card>
 

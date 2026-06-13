@@ -5,6 +5,7 @@ import { BookCover } from "@/components/book-cover";
 import { CommentForm } from "@/components/comment-form";
 import { CommentList } from "@/components/comment-list";
 import { ProgressControl } from "@/components/progress-control";
+import { ReadToggle } from "@/components/read-toggle";
 import { ReviewForm } from "@/components/review-form";
 import { StarsDisplay } from "@/components/star-rating";
 import { Badge, Card, PageHeader, ProgressBar } from "@/components/ui";
@@ -13,6 +14,7 @@ import {
   getMyProgress,
   getMyReview,
   getProgressForBook,
+  getReadsForBook,
   getReviewsForBook,
   getSpoilerComments,
   membersById,
@@ -28,14 +30,16 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
   if (!book) notFound();
 
   const memberId = await getCurrentMemberId();
-  const [reviews, memberMap, progress, myReview, myProgress] = await Promise.all([
+  const [reviews, memberMap, progress, myReview, myProgress, readerIds] = await Promise.all([
     getReviewsForBook(id),
     membersById(),
     getProgressForBook(id),
     memberId ? getMyReview(id, memberId) : Promise.resolve(null),
     memberId ? getMyProgress(id, memberId) : Promise.resolve(null),
+    getReadsForBook(id),
   ]);
 
+  const readerSet = new Set(readerIds);
   const myPercent = myProgress?.percent ?? 0;
   const spoilerComments = await getSpoilerComments(id, memberId ? myPercent : 100);
 
@@ -139,6 +143,30 @@ export default async function BookDetail({ params }: { params: Promise<{ id: str
         </div>
 
         <div className="space-y-6">
+          <Card className="p-6">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Read by</h2>
+              <ReadToggle bookId={id} read={memberId ? readerSet.has(memberId) : false} disabled={!memberId} size="sm" />
+            </div>
+            {readerSet.size === 0 ? (
+              <p className="text-sm text-muted-foreground">No one has marked this read yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {[...memberMap.values()]
+                  .filter((m) => readerSet.has(m.id))
+                  .map((m) => (
+                    <span
+                      key={m.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border py-0.5 pl-0.5 pr-2 text-xs"
+                    >
+                      <Avatar name={m.name} color={m.color} size={20} />
+                      {m.name.split(" ")[0]}
+                    </span>
+                  ))}
+              </div>
+            )}
+          </Card>
+
           <Card className="p-6">
             <h2 className="mb-4 text-lg font-semibold">Your review</h2>
             <ReviewForm bookId={id} existing={myReview} disabled={!memberId} />

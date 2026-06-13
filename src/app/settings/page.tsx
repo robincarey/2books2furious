@@ -2,7 +2,7 @@ import { AccentColorForm } from "@/components/accent-color-form";
 import { MemberPicker } from "@/components/member-picker";
 import { SetupNotice } from "@/components/setup-notice";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { isAiConfigured } from "@/lib/ai";
+import { isHardcoverConfigured } from "@/lib/hardcover";
 import { isDiscordConfigured } from "@/lib/discord";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { getMembers } from "@/lib/queries";
@@ -56,14 +56,14 @@ export default async function SettingsPage() {
           </li>
           <li className="flex items-center justify-between">
             <span>
-              <strong>AI recommendations</strong>
+              <strong>Book recommendations</strong>
               <span className="block text-xs text-muted-foreground">
-                Suggests books from your ratings. Set{" "}
-                <code className="rounded bg-muted px-1">OPENAI_API_KEY</code>.
+                Matches your top-rated reads to similar books on Hardcover. Set{" "}
+                <code className="rounded bg-muted px-1">HARDCOVER_API_KEY</code>.
               </span>
             </span>
-            <Badge tone={isAiConfigured() ? "success" : "muted"}>
-              {isAiConfigured() ? "on" : "off"}
+            <Badge tone={isHardcoverConfigured() ? "success" : "muted"}>
+              {isHardcoverConfigured() ? "on" : "off"}
             </Badge>
           </li>
         </ul>

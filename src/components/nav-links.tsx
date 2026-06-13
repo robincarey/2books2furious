@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/", label: "Home" },
   { href: "/meetings", label: "Meetings" },
   { href: "/backlog", label: "Backlog" },
+  { href: "/previous", label: "Previous" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/rotation", label: "Rotation" },
   { href: "/analytics", label: "Analytics" },

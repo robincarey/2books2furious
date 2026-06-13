@@ -94,6 +94,21 @@ export async function getAllReviews(): Promise<Review[]> {
   return (data as Review[]) ?? [];
 }
 
+export async function getAllMemberReads(): Promise<{ member_id: string; book_id: string }[]> {
+  const supabase = getSupabase();
+  const { data } = await supabase.from("member_book_reads").select("member_id, book_id");
+  return (data as { member_id: string; book_id: string }[]) ?? [];
+}
+
+export async function getReadsForBook(bookId: string): Promise<string[]> {
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from("member_book_reads")
+    .select("member_id")
+    .eq("book_id", bookId);
+  return ((data as { member_id: string }[]) ?? []).map((r) => r.member_id);
+}
+
 export async function getReviewsForBook(bookId: string): Promise<Review[]> {
   const supabase = getSupabase();
   const { data } = await supabase

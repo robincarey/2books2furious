@@ -113,6 +113,19 @@ create table if not exists rsvps (
 );
 
 -- ---------------------------------------------------------------------------
+-- Per-member read tracking. Separate from books.status: a book's status='read'
+-- only means the club picked/finished it as a group. Whether an individual
+-- member has personally read it is opt-in and tracked here.
+-- ---------------------------------------------------------------------------
+create table if not exists member_book_reads (
+  id         uuid primary key default gen_random_uuid(),
+  member_id  uuid not null references members(id) on delete cascade,
+  book_id    uuid not null references books(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (member_id, book_id)
+);
+
+-- ---------------------------------------------------------------------------
 -- Feature requests ("suggest a feature") + upvotes
 -- ---------------------------------------------------------------------------
 create table if not exists feature_requests (
@@ -136,6 +149,8 @@ create table if not exists feature_request_votes (
 -- Helpful indexes
 create index if not exists idx_reviews_book on reviews(book_id);
 create index if not exists idx_feature_votes_request on feature_request_votes(request_id);
+create index if not exists idx_member_reads_book on member_book_reads(book_id);
+create index if not exists idx_member_reads_member on member_book_reads(member_id);
 create index if not exists idx_comments_meeting on comments(meeting_id);
 create index if not exists idx_comments_book on comments(book_id);
 create index if not exists idx_meetings_date on meetings(meeting_date);
@@ -155,6 +170,7 @@ alter table reading_progress enable row level security;
 alter table rsvps            enable row level security;
 alter table feature_requests      enable row level security;
 alter table feature_request_votes enable row level security;
+alter table member_book_reads     enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Seed the 5 members (idempotent on name)

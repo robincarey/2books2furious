@@ -245,6 +245,30 @@ export async function addComment(formData: FormData) {
 }
 
 // --------------------------------------------------------------------------
+// Per-member read tracking (opt-in; separate from book.status)
+// --------------------------------------------------------------------------
+export async function toggleMemberRead(formData: FormData) {
+  const memberId = await requireMember();
+  const bookId = String(formData.get("book_id") ?? "");
+  if (!bookId) return;
+  const supabase = getSupabase();
+  const { data: existing } = await supabase
+    .from("member_book_reads")
+    .select("id")
+    .eq("book_id", bookId)
+    .eq("member_id", memberId)
+    .maybeSingle();
+  if (existing) {
+    await supabase.from("member_book_reads").delete().eq("id", existing.id);
+  } else {
+    await supabase.from("member_book_reads").insert({ book_id: bookId, member_id: memberId });
+  }
+  revalidatePath("/previous");
+  revalidatePath("/");
+  revalidatePath(`/books/${bookId}`);
+}
+
+// --------------------------------------------------------------------------
 // Feature requests ("suggest a feature")
 // --------------------------------------------------------------------------
 export async function addFeatureRequest(formData: FormData) {

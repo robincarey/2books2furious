@@ -18,7 +18,7 @@ so the browser never holds a credential.
 - **Rotation** — whose turn it is to pick next (fewest picks, tie-broken by rotation order), plus a weighted random "spin the wheel".
 - **Analytics** — genre breakdown, ratings distribution, and book length over time (Recharts).
 - **Spoiler-safe discussion** — set your reading progress; you only see comments at or below where you are, and your comments are tagged with your progress.
-- **AI recommendations** *(optional)* — suggestions from the club's (or one member's) ratings.
+- **Book recommendations** *(optional)* — a Hardcover-powered heuristic that matches the club's (or one member's) top-rated reads to similar highly-rated books.
 - **Discord notifications** *(optional)* — posts to your channel when meetings, suggestions, and reviews happen.
 - **Wrapped** — a year-in-review summary.
 - **Per-member accent colors** — each member customizes their own color (Settings).
@@ -41,8 +41,7 @@ B2F_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 B2F_SUPABASE_SECRET_KEY=sb_secret_...
 # Optional integrations:
 # DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
-# OPENAI_API_KEY=sk-...
-# OPENAI_MODEL=gpt-4o-mini
+# HARDCOVER_API_KEY=Bearer eyJ...   (value may already include the "Bearer " prefix)
 ```
 
 The app-specific `B2F_` prefix is used so a global `SUPABASE_URL` / `SUPABASE_KEY` exported in
@@ -84,8 +83,9 @@ Open http://localhost:3000 and pick who you are.
 
 - **Discord**: create a channel webhook (Server Settings → Integrations → Webhooks) and set
   `DISCORD_WEBHOOK_URL`. Status shows under Settings.
-- **AI recommendations**: set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`). The
-  `/recommendations` page lights up automatically.
+- **Book recommendations**: set `HARDCOVER_API_KEY` (free at hardcover.app; the value may already
+  include the `Bearer ` prefix — both forms are handled). The `/recommendations` page lights up
+  automatically and matches your top-rated reads to similar books on Hardcover.
 
 ## Notes on identity
 

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getRecommendations, isAiConfigured } from "@/lib/ai";
+import { getRecommendations, isHardcoverConfigured } from "@/lib/hardcover";
 import { getSupabase } from "@/lib/supabase";
 import type { Book, Review } from "@/lib/types";
 
 export async function POST(request: Request) {
-  if (!isAiConfigured()) {
+  if (!isHardcoverConfigured()) {
     return NextResponse.json({ error: "not_configured", recommendations: [] }, { status: 200 });
   }
 
@@ -18,11 +18,9 @@ export async function POST(request: Request) {
   const bookList = (books as Book[]) ?? [];
   const reviewList = (reviews as Review[]) ?? [];
 
-  // Average rating per book (optionally just for one member's reviews)
+  // Average rating per book (optionally just for one member's reviews).
   const relevant =
-    scope && scope !== "group"
-      ? reviewList.filter((r) => r.member_id === scope)
-      : reviewList;
+    scope && scope !== "group" ? reviewList.filter((r) => r.member_id === scope) : reviewList;
 
   const avgByBook = new Map<string, { sum: number; n: number }>();
   for (const r of relevant) {
@@ -33,6 +31,7 @@ export async function POST(request: Request) {
     avgByBook.set(r.book_id, e);
   }
 
+  // Seeds: rated books first; fall back to all "read" club books.
   const history = bookList
     .filter((b) => avgByBook.has(b.id) || b.status === "read")
     .map((b) => {
@@ -40,19 +39,11 @@ export async function POST(request: Request) {
       return {
         title: b.title,
         author: b.author,
-        genres: b.genres,
-        pages: b.page_count,
         avgRating: a ? a.sum / a.n : null,
       };
     });
 
-  const audience =
-    scope && scope !== "group"
-      ? "one member based on the books they personally rated"
-      : "the whole club";
-
   const recommendations = await getRecommendations({
-    audience,
     history,
     avoidTitles: bookList.map((b) => b.title),
   });

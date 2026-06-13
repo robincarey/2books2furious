@@ -1,4 +1,4 @@
-import { GenrePie, PagesLine, RatingsBar } from "@/components/analytics-charts";
+import { GenrePie, LengthBands, PagesLine, RatingsBar } from "@/components/analytics-charts";
 import { SetupNotice } from "@/components/setup-notice";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -33,7 +33,20 @@ export default async function AnalyticsPage() {
   // Ratings distribution
   const ratingCounts = [1, 2, 3, 4, 5].map((r) => ({
     rating: `${r}★`,
+    bucket: r,
     count: reviews.filter((rv) => rv.rating === r).length,
+  }));
+
+  // Book length bands
+  const BANDS = [
+    { label: "< 300p", min: 0, max: 299 },
+    { label: "300–399p", min: 300, max: 399 },
+    { label: "400–499p", min: 400, max: 499 },
+    { label: "500p+", min: 500, max: 100000 },
+  ];
+  const lengthData = BANDS.map((b) => ({
+    ...b,
+    count: books.filter((bk) => bk.page_count != null && bk.page_count >= b.min && bk.page_count <= b.max).length,
   }));
 
   // Pages over time (by meeting date, books with page counts)
@@ -43,6 +56,7 @@ export default async function AnalyticsPage() {
     .map((m) => ({
       label: formatDate(m.meeting_date).replace(/,.*/, ""),
       pages: bookMap.get(m.book_id as string)?.page_count ?? 0,
+      bookId: m.book_id as string,
     }));
 
   // Summary stats
@@ -86,7 +100,11 @@ export default async function AnalyticsPage() {
               <h2 className="mb-4 font-semibold">Ratings distribution</h2>
               <RatingsBar data={ratingCounts} />
             </Card>
-            <Card className="p-6 lg:col-span-2">
+            <Card className="p-6">
+              <h2 className="mb-4 font-semibold">Book lengths</h2>
+              <LengthBands data={lengthData} />
+            </Card>
+            <Card className="p-6">
               <h2 className="mb-4 font-semibold">Book length over time</h2>
               {pagesData.length ? (
                 <PagesLine data={pagesData} />
